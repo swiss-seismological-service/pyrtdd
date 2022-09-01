@@ -1,0 +1,3 @@
+[submodule "scrtdd"]
+	path = scrtdd
+	url = https://github.com/swiss-seismological-service/scrtdd
