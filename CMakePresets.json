@@ -1,0 +1,45 @@
+{
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 23,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": {
+                    "type": "STRING",
+                    "value": "clang++-14"
+                }
+            },
+            "displayName": "Clang 14",
+            "generator": "Ninja",
+            "hidden": false,
+            "name": "clang-14"
+        },
+        {
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": {
+                    "type": "STRING",
+                    "value": "g++-12"
+                }
+            },
+            "displayName": "GCC 12",
+            "hidden": false,
+            "name": "gcc-12"
+        },
+        {
+            "binaryDir": "/home/user/build/vscode",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": {
+                    "type": "BOOL",
+                    "value": "True"
+                }
+            },
+            "inherits": "clang-14",
+            "installDir": "/home/user/build/vscode",
+            "name": "dev"
+        }
+    ],
+    "version": 3
+}

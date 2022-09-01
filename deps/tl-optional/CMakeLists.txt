@@ -1,0 +1,13 @@
+CPMADDPACKAGE (
+  NAME tl-optional
+  GITHUB_REPOSITORY TartanLlama/optional
+  GIT_TAG c28fcf7
+  OPTIONS "OPTIONAL_BUILD_TESTS OFF"
+)
+
+IF (tl-optional_ADDED)
+  ADD_LIBRARY (tl-optional INTERFACE IMPORTED GLOBAL)
+  TARGET_INCLUDE_DIRECTORIES (
+    tl-optional INTERFACE ${tl-optional_SOURCE_DIR}/include
+  )
+ENDIF ()

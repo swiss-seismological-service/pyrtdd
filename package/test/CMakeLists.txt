@@ -1,0 +1,4 @@
+SET (SOURCES main.cpp test.cpp)
+
+ADD_EXECUTABLE (test ${SOURCES})
+TARGET_LINK_LIBRARIES (test PRIVATE Catch2::Catch2)

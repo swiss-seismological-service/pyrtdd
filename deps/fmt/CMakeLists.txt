@@ -1,0 +1,5 @@
+CPMADDPACKAGE (
+  NAME fmt
+  GITHUB_REPOSITORY fmtlib/fmt
+  GIT_TAG 9.0.0
+)

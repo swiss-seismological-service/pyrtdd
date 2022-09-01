@@ -1,0 +1,24 @@
+default:
+  image: registry.gitlab.com/mafanasiev/cpp-template:latest
+
+stages:
+  - build-test
+
+.build-common: &build-common
+  - mkdir -p ${CI_PROJECT_DIR}/../build/${CI_JOB_NAME} && cd $_ && pwd
+  - cmake -S ${CI_PROJECT_DIR} --preset=${CI_JOB_NAME}
+  - cmake --build . --target test
+
+gcc-12:
+  stage: build-test
+  script:
+    - *build-common
+    - ./package/test/test
+  needs: []
+
+clang-14:
+  stage: build-test
+  script:
+    - *build-common
+    - ./package/test/test
+  needs: []

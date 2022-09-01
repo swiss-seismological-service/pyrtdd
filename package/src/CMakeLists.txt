@@ -1,0 +1,4 @@
+SET (SOURCES main.cpp)
+
+ADD_EXECUTABLE (main ${SOURCES})
+TARGET_LINK_LIBRARIES (main fmt::fmt)
