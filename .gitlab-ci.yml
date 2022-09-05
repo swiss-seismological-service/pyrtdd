@@ -2,6 +2,9 @@ default:
   image: registry.gitlab.com/mafanasiev/cpp-template:latest
   tags: ["domino"]
 
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
 stages:
   - build-cpm-cache
   - build-test
