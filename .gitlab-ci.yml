@@ -3,23 +3,41 @@ default:
   tags: ["domino"]
 
 stages:
+  - build-cpm-cache
   - build-test
+
+build-cpm-cache:
+  stage: build-cpm-cache
+  script:
+    - cmake -S ${CI_PROJECT_DIR} -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
+  cache:
+    - key: cpm
+    - paths: [.cache/cpm]
+    - policy: pull-push
+
+.cache-config: &cache-config
+  cache:
+    - key: cpm
+    - paths: [.cache/cpm]
+    - policy: pull
 
 .build-common: &build-common
   - mkdir -p ${CI_PROJECT_DIR}/../build/${CI_JOB_NAME} && cd $_ && pwd
-  - cmake -S ${CI_PROJECT_DIR} --preset=${CI_JOB_NAME}
-  - cmake --build . --target test
+  - cmake -S ${CI_PROJECT_DIR}
+      --preset=${CI_JOB_NAME}
+      -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
+  - cmake --build . --target hdd
 
 gcc-12:
   stage: build-test
   script:
     - *build-common
-    - ./package/test/test
-  needs: []
+  <<: *cache-config
+  needs: [build-cpm-cache]
 
 clang-14:
   stage: build-test
   script:
     - *build-common
-    - ./package/test/test
-  needs: []
+  <<: *cache-config
+  needs: [build-cpm-cache]
