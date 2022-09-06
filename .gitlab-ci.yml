@@ -12,11 +12,13 @@ stages:
 build-cpm-cache:
   stage: build-cpm-cache
   script:
+    - mkdir -p /home/user/build && cd _ && pwd && ls -a
     - cmake -S ${CI_PROJECT_DIR} -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
   cache:
     - key: cpm
     - paths: [.cache/cpm]
     - policy: pull-push
+  when: manual
 
 .cache-config: &cache-config
   cache:
@@ -25,7 +27,7 @@ build-cpm-cache:
     - policy: pull
 
 .build-common: &build-common
-  - mkdir -p ${CI_PROJECT_DIR}/../build/${CI_JOB_NAME} && cd $_ && pwd
+  - mkdir -p /home/user/build && cd _ && pwd && ls -a
   - cmake -S ${CI_PROJECT_DIR}
       --preset=${CI_JOB_NAME}
       -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
@@ -36,11 +38,11 @@ gcc-12:
   script:
     - *build-common
   <<: *cache-config
-  needs: [build-cpm-cache]
+  needs: []
 
 clang-14:
   stage: build-test
   script:
     - *build-common
   <<: *cache-config
-  needs: [build-cpm-cache]
+  needs: []
