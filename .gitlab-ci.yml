@@ -4,6 +4,7 @@ default:
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  GIT_DEPTH: 1
 
 stages:
   - build-cpm-cache
@@ -12,7 +13,7 @@ stages:
 build-cpm-cache:
   stage: build-cpm-cache
   script:
-    - mkdir -p /home/user/build && cd _ && pwd && ls -a
+    - mkdir -p /home/user/build && cd $_ && pwd && ls -a
     - cmake -S ${CI_PROJECT_DIR} -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
   cache:
     - key: cpm
@@ -27,7 +28,7 @@ build-cpm-cache:
     - policy: pull
 
 .build-common: &build-common
-  - mkdir -p /home/user/build && cd _ && pwd && ls -a
+  - mkdir -p /home/user/build && cd $_ && pwd && ls -a
   - cmake -S ${CI_PROJECT_DIR}
       --preset=${CI_JOB_NAME}
       -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
