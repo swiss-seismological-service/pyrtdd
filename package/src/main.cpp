@@ -1,3 +1,3 @@
-#include "fmt/format.h"
+#include <iostream>
 
-auto main() -> int { fmt::print("{}\n", "Hello world!"); }
+auto main() -> int { std::cout << "HELLO WORLD\n"; }

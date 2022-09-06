@@ -2,24 +2,48 @@ default:
   image: registry.gitlab.com/mafanasiev/cpp-template:latest
   tags: ["domino"]
 
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_DEPTH: 1
+
 stages:
+  - build-cpm-cache
   - build-test
 
+build-cpm-cache:
+  stage: build-cpm-cache
+  script:
+    - mkdir -p /home/user/build && cd $_ && pwd && ls -a
+    - cmake -S ${CI_PROJECT_DIR} -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
+  cache:
+    - key: cpm
+    - paths: [.cache/cpm]
+    - policy: pull-push
+  when: manual
+
+.cache-config: &cache-config
+  cache:
+    - key: cpm
+    - paths: [.cache/cpm]
+    - policy: pull
+
 .build-common: &build-common
-  - mkdir -p ${CI_PROJECT_DIR}/../build/${CI_JOB_NAME} && cd $_ && pwd
-  - cmake -S ${CI_PROJECT_DIR} --preset=${CI_JOB_NAME}
-  - cmake --build . --target test
+  - mkdir -p /home/user/build && cd $_ && pwd && ls -a
+  - cmake -S ${CI_PROJECT_DIR}
+      --preset=${CI_JOB_NAME}
+      -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
+  - cmake --build . --target hdd
 
 gcc-12:
   stage: build-test
   script:
     - *build-common
-    - ./package/test/test
+  <<: *cache-config
   needs: []
 
 clang-14:
   stage: build-test
   script:
     - *build-common
-    - ./package/test/test
+  <<: *cache-config
   needs: []

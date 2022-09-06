@@ -25,6 +25,7 @@
                 }
             },
             "displayName": "GCC 12",
+            "generator": "Ninja",
             "hidden": false,
             "name": "gcc-12"
         },
