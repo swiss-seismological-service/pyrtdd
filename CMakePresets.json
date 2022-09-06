@@ -35,6 +35,10 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": {
                     "type": "BOOL",
                     "value": "True"
+                },
+                "Python_EXECUTABLE": {
+                    "type": "FILEPATH",
+                    "value": "/home/user/.miniconda/envs/scrtdd/bin/python"
                 }
             },
             "inherits": "clang-14",

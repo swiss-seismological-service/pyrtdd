@@ -1,5 +1,5 @@
 default:
-  image: registry.gitlab.com/mafanasiev/cpp-template:latest
+  image: registry.gitlab.com/mondaic/projects/sed-dug-seis/scrtdd-wrappers:latest
   tags: ["domino"]
 
 variables:
