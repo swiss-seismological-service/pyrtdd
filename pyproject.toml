@@ -5,7 +5,8 @@ requires = [
     "scikit-build==0.14.0",
     "cmake>=3.18",
     "nanobind>=0.0.3",
-    "ninja; platform_system!='Windows'"
+    "ninja; platform_system!='Windows'",
+    "pytest"
 ]
 
 build-backend = "setuptools.build_meta"
