@@ -3,7 +3,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(catalog_ext, m) {  // NOLINT
+void InitCatalog(py::module_ &m) {
 
   auto catalog = py::class_<HDD::Catalog>(m, "Catalog");
   auto phase = py::class_<HDD::Catalog::Phase>(catalog, "Phase");

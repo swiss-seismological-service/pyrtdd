@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(dd_ext, m) {  // NOLINT
+void InitConfig(py::module_& m) {
 
   auto config = py::class_<HDD::Config>(m, "Config");
 
