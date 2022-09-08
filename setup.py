@@ -1,4 +1,4 @@
-import sys, re, os
+import sys
 
 try:
     from skbuild import setup
@@ -23,5 +23,6 @@ setup(
     package_dir={"": "package/src"},
     cmake_install_dir="package/src/scrtdd",
     include_package_data=True,
+    extras_require={"test": ["pytest"]},
     python_requires=">=3.8",
 )

@@ -1,6 +1,8 @@
 default:
   image: registry.gitlab.com/mondaic/projects/sed-dug-seis/scrtdd-wrappers:latest
   tags: ["domino"]
+  before_script:
+    - export PATH=/home/user/.miniconda/envs/scrtdd/bin:${PATH}
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
@@ -27,23 +29,26 @@ build-cpm-cache:
     - paths: [.cache/cpm]
     - policy: pull
 
-.build-common: &build-common
-  - mkdir -p /home/user/build && cd $_ && pwd && ls -a
-  - cmake -S ${CI_PROJECT_DIR}
-      --preset=${CI_JOB_NAME}
-      -DCPM_SOURCE_CACHE:PATH=${CI_PROJECT_DIR}/.cache/cpm
-  - cmake --build . --target hdd
-
 gcc-12:
   stage: build-test
   script:
-    - *build-common
+    - CC=gcc-12
+      CXX=g++-12
+      SKBUILD_CONFIGURE_OPTIONS="-DCMAKE_C_COMPILER:STRING=gcc-12 -DCMAKE_CXX_COMPILER:STRING=g++-12 -DCPM_SOURCE_CACHE:PATH=$CI_PROJECT_DIR/.cache/cpm"
+      SKBUILD_BUILD_OPTIONS="-v"
+      pip install -v .
+    - pytest -v
   <<: *cache-config
   needs: []
 
 clang-14:
   stage: build-test
   script:
-    - *build-common
+    - CC=clang-14
+      CXX=clang++-14
+      SKBUILD_CONFIGURE_OPTIONS="-DCMAKE_C_COMPILER:STRING=clang-14 -DCMAKE_CXX_COMPILER:STRING=clang++-14 -DCPM_SOURCE_CACHE:PATH=$CI_PROJECT_DIR/.cache/cpm"
+      SKBUILD_BUILD_OPTIONS="-v"
+      pip install -v .
+    - pytest -v
   <<: *cache-config
   needs: []
