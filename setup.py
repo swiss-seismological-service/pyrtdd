@@ -2,7 +2,7 @@ import sys, re, os
 
 try:
     from skbuild import setup
-    import nanobind
+    import pybind11
 except ImportError:
     print(
         "The preferred way to invoke 'setup.py' is via pip, as in 'pip "

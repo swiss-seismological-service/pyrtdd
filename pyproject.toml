@@ -2,9 +2,9 @@
 requires = [
     "setuptools>=42",
     "wheel",
-    "scikit-build==0.14.0",
-    "cmake>=3.18",
-    "nanobind>=0.0.3",
+    "scikit-build>=0.15.0",
+    "cmake>=3.22",
+    "pybind11~=2.9.2",
     "ninja; platform_system!='Windows'",
     "pytest"
 ]

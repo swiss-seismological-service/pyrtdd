@@ -1,17 +1,25 @@
 #include "dd.h"
-#include "nanobind/nanobind.h"
-#include "nanobind/stl/pair.h"
-#include "nanobind/stl/string.h"
-#include "nanobind/stl/vector.h"
+#include "pybind11/pybind11.h"
+#include "pybind11/stl.h"
 
-namespace nb = nanobind;
-using namespace nb::literals;
+namespace py = pybind11;
 
-NB_MODULE(dd_ext, m) {  // NOLINT
-  nb::class_<HDD::Config>(m, "Config")
-      .def(nb::init<>())
+PYBIND11_MODULE(dd_ext, m) {  // NOLINT
+
+  auto config = py::class_<HDD::Config>(m, "Config");
+
+  config.def(py::init<>())
       .def_readwrite("validPphases", &HDD::Config::validPphases)
       .def_readwrite("validSphases", &HDD::Config::validSphases)
       .def_readwrite("compatibleChannels", &HDD::Config::compatibleChannels)
-      .def_readwrite("diskTraceMinLen", &HDD::Config::diskTraceMinLen);
+      .def_readwrite("diskTraceMinLen", &HDD::Config::diskTraceMinLen)
+      .def_readwrite("xcorr", &HDD::Config::xcorr);
+
+  py::class_<HDD::Config::XCorr>(config, "XCorr")
+      .def(py::init<>())
+      .def_readwrite("minCoef", &HDD::Config::XCorr::minCoef)
+      .def_readwrite("startOffset", &HDD::Config::XCorr::startOffset)
+      .def_readwrite("endOffset", &HDD::Config::XCorr::endOffset)
+      .def_readwrite("maxDelay", &HDD::Config::XCorr::maxDelay)
+      .def_readwrite("components", &HDD::Config::XCorr::components);
 }

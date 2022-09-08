@@ -6,17 +6,17 @@ FIND_PACKAGE (
 
 EXECUTE_PROCESS (
   COMMAND "${Python_EXECUTABLE}" -c
-          "import nanobind; print (nanobind.cmake_dir())"
+          "import pybind11; print (pybind11.get_cmake_dir())"
   OUTPUT_VARIABLE _tmp_dir
   OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ECHO STDOUT
 )
 
 LIST (APPEND CMAKE_PREFIX_PATH "${_tmp_dir}")
-FIND_PACKAGE (nanobind CONFIG REQUIRED)
+FIND_PACKAGE (pybind11 CONFIG REQUIRED)
 
 SET (HDD_EXT_DIR scrtdd/hdd)
-SET (SOURCES ${HDD_EXT_DIR}/dd_ext.cpp)
-NANOBIND_ADD_MODULE (dd_ext NB_STATIC ${SOURCES})
+SET (SOURCES ${HDD_EXT_DIR}/dd_ext.cpp ${HDD_EXT_DIR}/catalog_ext.cpp)
 
-TARGET_LINK_LIBRARIES (dd_ext PRIVATE hdd)
-INSTALL (TARGETS dd_ext LIBRARY DESTINATION ./hdd)
+PYBIND11_ADD_MODULE (hdd_ext MODULE ${SOURCES})
+TARGET_LINK_LIBRARIES (hdd_ext PRIVATE hdd)
+INSTALL (TARGETS hdd_ext LIBRARY DESTINATION ./hdd)
