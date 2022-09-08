@@ -1,3 +1,24 @@
-SET (SOURCES main.cpp)
+FIND_PACKAGE (
+  Python
+  COMPONENTS Interpreter Development.Module
+  REQUIRED
+)
 
-ADD_EXECUTABLE (main ${SOURCES})
+EXECUTE_PROCESS (
+  COMMAND "${Python_EXECUTABLE}" -c
+          "import pybind11; print (pybind11.get_cmake_dir())"
+  OUTPUT_VARIABLE _tmp_dir
+  OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ECHO STDOUT
+)
+
+LIST (APPEND CMAKE_PREFIX_PATH "${_tmp_dir}")
+FIND_PACKAGE (pybind11 CONFIG REQUIRED)
+
+SET (HDD_EXT_DIR scrtdd/hdd)
+SET (SOURCES ${HDD_EXT_DIR}/hdd.cpp ${HDD_EXT_DIR}/dd.cpp
+             ${HDD_EXT_DIR}/catalog.cpp
+)
+
+PYBIND11_ADD_MODULE (hdd_ext MODULE ${SOURCES})
+TARGET_LINK_LIBRARIES (hdd_ext PRIVATE hdd)
+INSTALL (TARGETS hdd_ext LIBRARY DESTINATION ./hdd)

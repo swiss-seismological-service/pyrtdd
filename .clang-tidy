@@ -1,4 +1,4 @@
-Checks: '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-llvm-*,-llvmlibc-*,-readability-magic-numbers,-cppcoreguidelines-avoid-magic-numbers,-altera-id-dependent-backward-branch,-altera-unroll-loops,-readability-isolate-declaration,-modernize-use-nodiscard'
+Checks: '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-llvm-*,-llvmlibc-*,-readability-magic-numbers,-cppcoreguidelines-avoid-magic-numbers,-altera-id-dependent-backward-branch,-altera-unroll-loops,-readability-isolate-declaration,-modernize-use-nodiscard,-readability-identifier-length'
 HeaderFilterRegex: '.*'
 # WarningsAsErrors: '*'
 CheckOptions:

@@ -19,5 +19,6 @@
     },
     "cmake.useCMakePresets": "auto",
     "cmakeFormat.exePath": "/usr/local/bin/cmake-format",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "python.formatting.provider": "black"
 }
