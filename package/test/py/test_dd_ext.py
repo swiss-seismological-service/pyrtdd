@@ -1,5 +1,7 @@
-from scrtdd.hdd import Config, Catalog, ConstantVelocity
+from scrtdd.hdd import Config, Catalog, ConstantVelocity, UTCClock
+import datetime
 
+Event = Catalog.Event
 Station = Catalog.Station
 PhaseType = Catalog.Phase.Type
 
@@ -57,3 +59,12 @@ def test_station():
     assert s0 == s1
     assert s0 != s2
 
+def test_utc_time():
+
+    assert UTCClock.fromString("1970-01-01T00:00:00.000Z") == datetime.timedelta(0)
+    assert UTCClock.fromString("1970-01-01T01:00:00.000Z") == datetime.timedelta(0, 0, 0, 0, 0, 1)
+    assert UTCClock.fromString("1980-01-01T01:00:00.000Z") == datetime.timedelta(3652, 0, 0, 0, 0, 1)
+
+def test_event():
+    
+    phases = Event.PHASES_TYPE(0, 0, +1.0, +0.5, +2.0)

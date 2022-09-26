@@ -1,1 +1,1 @@
-from .hdd_ext import Config, Catalog, ConstantVelocity
+from .hdd_ext import Config, Catalog, ConstantVelocity, UTCClock
