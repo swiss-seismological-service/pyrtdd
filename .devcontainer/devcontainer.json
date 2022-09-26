@@ -1,9 +1,25 @@
 {
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "clangd.arguments": [
+                    "--compile-commands-dir=/home/user/build/vscode"
+                ],
+                "clangd.path": "/usr/bin/clangd-14",
+                "cmake.buildDirectory": "/home/user/build/vscode",
+                "cmake.cmakePath": "/usr/bin/cmake",
+                "cmake.configureOnOpen": true,
+                "cmake.useCMakePresets": "auto",
+                "cmakeFormat.exePath": "/usr/local/bin/cmake-format",
+                "editor.formatOnSave": true,
+                "python.formatting.provider": "black"
+            }
+        }
+    },
     "extensions": [
         "cschlosser.doxdocgen",
         "twxs.cmake",
         "sleistner.vscode-fileutils",
-        "matangover.mypy",
         "ms-vscode.cmake-tools",
         "zfzackfrost.commentbars",
         "ryanluker.vscode-coverage-gutters",
@@ -22,7 +38,6 @@
         "--security-opt",
         "seccomp=unconfined",
         "--privileged"
-        // "--gpus=all" -- requires nvidia-container-runtime
     ],
     "workspaceFolder": "/home/user/src",
     "workspaceMount": "source=${localWorkspaceFolder},target=/home/user/src,type=bind"

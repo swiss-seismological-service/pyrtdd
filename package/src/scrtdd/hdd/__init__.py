@@ -1,1 +1,1 @@
-from .hdd_ext import Config, Catalog
+from .hdd_ext import Config, Catalog, ConstantVelocity
