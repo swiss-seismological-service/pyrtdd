@@ -36,6 +36,10 @@
                     "type": "BOOL",
                     "value": "True"
                 },
+                "CPM_SOURCE_CACHE": {
+                    "type": "PATH",
+                    "value": "/home/user/.cpm_cache"
+                },
                 "Python_EXECUTABLE": {
                     "type": "FILEPATH",
                     "value": "/home/user/.miniconda/envs/scrtdd/bin/python"

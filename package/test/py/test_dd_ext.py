@@ -1,4 +1,4 @@
-from scrtdd.hdd import Config, Catalog
+from scrtdd.hdd import Config, Catalog, ConstantVelocity
 
 PhaseType = Catalog.Phase.Type
 
@@ -34,3 +34,8 @@ def test_config_mutations():
     }
     assert c.wfFilter == c.WF_FILTER_TYPE("my_fav_filter_string", 0, 1)
     assert c.snr == c.SNR_TYPE(2, -3.0, -0.35, -0.35, 1)
+
+def test_cv_ttt():
+
+    # This is just a smoke test as there are no public methods
+    cv_ttt = ConstantVelocity(2.0, 1.0)
