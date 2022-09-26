@@ -1,5 +1,6 @@
 from scrtdd.hdd import Config, Catalog, ConstantVelocity
 
+Station = Catalog.Station
 PhaseType = Catalog.Phase.Type
 
 
@@ -39,3 +40,20 @@ def test_cv_ttt():
 
     # This is just a smoke test as there are no public methods
     cv_ttt = ConstantVelocity(2.0, 1.0)
+
+def test_station():
+
+    s0 = Station("xy", 90.0, 0.0, 0.0, "XX", "YY", "ZZ")
+    s1 = Station("xy", 90.0, 0.0, 0.0, "XX", "YY", "ZZ")
+    s2 = Station("xy", 80.0, 0.0, 0.0, "XX", "YY", "ZZ")
+
+    assert s0.id == "xy"
+    assert s0.latitude == 90.0
+    assert s0.longitude == 0.0
+    assert s0.networkCode == "XX"
+    assert s0.stationCode == "YY"
+    assert s0.locationCode == "ZZ"
+
+    assert s0 == s1
+    assert s0 != s2
+
