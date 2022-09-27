@@ -1,1 +1,7 @@
-from .hdd_ext import Config, Catalog, ConstantVelocity, UTCClock
+from .hdd_ext import (
+    Config,
+    Catalog,
+    ConstantVelocity,
+    UTCClock,
+    ObspyWaveformProxy,
+)

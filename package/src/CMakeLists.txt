@@ -17,6 +17,7 @@ FIND_PACKAGE (pybind11 CONFIG REQUIRED)
 SET (HDD_EXT_DIR scrtdd/hdd)
 SET (
   SOURCES
+  ${HDD_EXT_DIR}/ObspyWaveformProxy.cpp
   ${HDD_EXT_DIR}/hdd_ext.cpp
   ${HDD_EXT_DIR}/dd_ext.cpp
   ${HDD_EXT_DIR}/catalog_ext.cpp
