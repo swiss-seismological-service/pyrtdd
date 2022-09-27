@@ -1,8 +1,13 @@
-from scrtdd.hdd import Config, Catalog, ConstantVelocity, UTCClock
 import datetime
+import pathlib
+
+from scrtdd.hdd import Catalog, Config, ConstantVelocity, UTCClock
+
+DATA_DIR = pathlib.Path(__file__).parent / "data"
 
 Event = Catalog.Event
 Station = Catalog.Station
+Phase = Catalog.Phase
 PhaseType = Catalog.Phase.Type
 
 
@@ -191,3 +196,37 @@ def test_event():
     assert e.relocInfo.dd.numCCs == 3
     e.relocInfo.dd.numCCs = 2
     assert e.relocInfo.dd.numCCs == 2
+
+
+def test_catalog():
+
+    event_file = str(DATA_DIR / "starting-event.csv")
+    phase_file = str(DATA_DIR / "starting-phase.csv")
+    station_file = str(DATA_DIR / "starting-station.csv")
+
+    c = Catalog(station_file, event_file, phase_file, False)
+
+    st_test = c.getStations()["NET.ST08."]
+    ev_test = c.getEvents()[11]
+    (ph_test,) = filter(
+        lambda x: x.time == UTCClock.fromString("2041-06-14T23:45:10.733093Z"),
+        c.getPhases()[24],
+    )
+
+    assert st_test == Station(
+        "NET.ST08.", 47.095355, 8.359807, 0.0, "NET", "ST08", ""
+    )
+
+    assert ev_test.latitude == 47.000531
+    assert ev_test.longitude == 8.459671
+    assert ev_test.magnitude == 1.00
+    assert ev_test.depth == 6.6365
+    assert ev_test.time == UTCClock.fromString("2041-06-14T23:46:05.010713Z")
+
+    assert ph_test.time == UTCClock.fromString("2041-06-14T23:45:10.733093Z")
+    assert ph_test.type == "P"
+    assert ph_test.lowerUncertainty == 0.0
+    assert ph_test.upperUncertainty == 0.0
+    assert ph_test.networkCode == "NET"
+    assert ph_test.stationCode == "ST02"
+    assert ph_test.isManual

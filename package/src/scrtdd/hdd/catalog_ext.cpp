@@ -2,7 +2,11 @@
 #include "pybind11/chrono.h"
 #include "pybind11/operators.h"
 #include "pybind11/pybind11.h"
+#include "pybind11/stl.h"
 #include "utctime.h"
+
+#include <string>
+#include <unordered_map>
 
 namespace py = pybind11;
 
@@ -86,17 +90,72 @@ void InitEvent(auto &catalog) {
       .def_readwrite("dd", &RelocInfo_t::dd);
 }
 
+void InitPhase(auto &catalog) {
+
+  using Phase = HDD::Catalog::Phase;
+
+  using ProcInfo_t = decltype(Phase::procInfo);
+  using RelocInfo_t = decltype(Phase::relocInfo);
+
+  auto phase = py::class_<Phase>(catalog, "Phase")
+                   .def(py::init<>())
+                   .def(py::self == py::self)  // NOLINT
+                   .def(py::self != py::self)  // NOLINT
+                   .def_readwrite("eventId", &Phase::eventId)
+                   .def_readwrite("stationId", &Phase::stationId)
+                   .def_readwrite("time", &Phase::time)
+                   .def_readwrite("lowerUncertainty", &Phase::lowerUncertainty)
+                   .def_readwrite("upperUncertainty", &Phase::upperUncertainty)
+                   .def_readwrite("type", &Phase::type)
+                   .def_readwrite("networkCode", &Phase::networkCode)
+                   .def_readwrite("stationCode", &Phase::stationCode)
+                   .def_readwrite("locationCode", &Phase::locationCode)
+                   .def_readwrite("channelCode", &Phase::channelCode)
+                   .def_readwrite("isManual", &Phase::isManual)
+                   .def_readwrite("procInfo", &Phase::procInfo)
+                   .def_readwrite("relocInfo", &Phase::relocInfo);
+
+  py::enum_<Phase::Type>(phase, "Type")
+      .value("P", Phase::Type::P)
+      .value("S", Phase::Type::S);
+
+  py::enum_<Phase::Source>(phase, "Source")
+      .value("CATALOG", Phase::Source::CATALOG)
+      .value("RT_EVENT", Phase::Source::RT_EVENT)
+      .value("THEORETICAL", Phase::Source::THEORETICAL)
+      .value("XCORR", Phase::Source::XCORR);
+
+  py::class_<ProcInfo_t>(phase, "PROC_INFO_TYPE")
+      .def(py::init<>())
+      .def(py::init<Phase::Type, double, Phase::Source>())
+      .def_readwrite("type", &ProcInfo_t::type)
+      .def_readwrite("weight", &ProcInfo_t::weight)
+      .def_readwrite("source", &ProcInfo_t::source);
+}
+
 void InitCatalog(py::module_ &m) {
 
-  auto catalog = py::class_<HDD::Catalog>(m, "Catalog").def(py::init<>());
+  using Station = HDD::Catalog::Station;
+  using Event = HDD::Catalog::Event;
+  using Phase = HDD::Catalog::Phase;
 
-  auto phase =
-      py::class_<HDD::Catalog::Phase>(catalog, "Phase").def(py::init<>());
-
-  auto type = py::enum_<HDD::Catalog::Phase::Type>(phase, "Type")
-                  .value("P", HDD::Catalog::Phase::Type::P)
-                  .value("S", HDD::Catalog::Phase::Type::S);
+  auto catalog = py::class_<HDD::Catalog>(m, "Catalog")
+                     .def(py::init<>())
+                     .def(py::init<
+                          std::string const &, std::string const &,
+                          std::string const &, bool>())
+                     .def("getStations", &HDD::Catalog::getStations)
+                     .def("getEvents", &HDD::Catalog::getEvents)
+                     .def("getPhases", [](HDD::Catalog const &c) {
+                       std::unordered_map<unsigned, std::vector<Phase>> r;
+                       for (auto const &p : c.getPhases()) {
+                         auto const &[u, _p] = p;
+                         r[u].push_back(_p);
+                       }
+                       return r;
+                     });
 
   InitStation(catalog);
   InitEvent(catalog);
+  InitPhase(catalog);
 }
