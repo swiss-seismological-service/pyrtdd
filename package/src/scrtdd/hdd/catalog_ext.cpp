@@ -1,4 +1,5 @@
 #include "catalog.h"
+#include "pybind11/chrono.h"
 #include "pybind11/operators.h"
 #include "pybind11/pybind11.h"
 #include "utctime.h"
@@ -80,7 +81,9 @@ void InitEvent(auto &catalog) {
       .def_readwrite("locChange", &RelocInfo_t::locChange)
       .def_readwrite("depthChange", &RelocInfo_t::depthChange)
       .def_readwrite("timeChange", &RelocInfo_t::timeChange)
-      .def_readwrite("numNeighbours", &RelocInfo_t::numNeighbours);
+      .def_readwrite("numNeighbours", &RelocInfo_t::numNeighbours)
+      .def_readwrite("phases", &RelocInfo_t::phases)
+      .def_readwrite("dd", &RelocInfo_t::dd);
 }
 
 void InitCatalog(py::module_ &m) {
