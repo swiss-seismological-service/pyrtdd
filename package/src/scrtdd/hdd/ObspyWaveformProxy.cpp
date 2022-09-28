@@ -1,4 +1,5 @@
 #include "ObspyWaveformProxy.h"
+#include "timewindow.h"
 #include "utctime.h"
 
 #include <algorithm>
@@ -7,6 +8,10 @@
 #include <iterator>
 #include <memory>
 #include <numeric>
+#include <optional>
+#include <pybind11/attr.h>
+#include <pybind11/buffer_info.h>
+#include <pybind11/detail/common.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/pytypes.h>
@@ -20,31 +25,26 @@ namespace HDD::Waveform {
 
 ObspyWaveformProxy::ObspyWaveformProxy(py::object stream)
     : _stream(std::move(stream))
-    , _map(detail::CreateIndexMap(_stream.attr("traces"))) {
-
-  for (auto [k, v] : _map) { std::cout << k << "\n"; }
-};
+    , _map(detail::CreateIndexMap(_stream.attr("traces"))){};
 
 auto ObspyWaveformProxy::loadTrace(
     TimeWindow const &tw, std::string const &networkCode,
     std::string const &stationCode, std::string const &locationCode,
     std::string const &channelCode) -> std::unique_ptr<Trace> {
 
-  auto const k =
+  using namespace detail;
+
+  auto k =
       networkCode + "." + stationCode + "." + locationCode + "." + channelCode;
 
-  auto idx = _map.find(k);
-  if (idx == _map.end()) {
-    throw std::runtime_error(
-        std::string("Trace with identifier ") + k + " not found.");
-  }
-
-  auto tr = py::cast<py::list>(_stream.attr("traces"));
-  auto span = detail::GetTraceData(tr[idx->second]);
+  auto tr = GetTrace(*this, GetTraceIdx(*this, k));
+  auto span = GetTraceData(tr);
+  double sr = StatsAttr<double>("sampling_rate", tr);
+  auto time = StatsAttr("starttime", tr).attr("__str__")().cast<std::string>();
 
   return std::make_unique<Trace>(
-      networkCode, stationCode, locationCode, channelCode, UTCTime(), 1.0,
-      span.data(), span.size());
+      networkCode, stationCode, locationCode, channelCode,
+      UTCClock::fromString(time), sr, span.data(), span.size());
 };
 
 void ObspyWaveformProxy::loadTraces(
@@ -54,37 +54,40 @@ void ObspyWaveformProxy::loadTraces(
         &onTraceLoaded,
     const std::function<
         void(std::string const &, TimeWindow const &, std::string const &)>
-        &onTraceFailed){};
+        &onTraceFailed) {
+  throw std::runtime_error("LoadTraces not yet implemented.");
+};
+
 void ObspyWaveformProxy::getComponentsInfo(
     Catalog::Phase const &ph, ThreeComponents &components){};
-void ObspyWaveformProxy::filter(Trace &trace, std::string const &filterStr){};
+void ObspyWaveformProxy::filter(Trace &trace, std::string const &filterStr) {
+  throw std::runtime_error("getComponentsInfo not yet implemented.");
+};
 
 void ObspyWaveformProxy::writeTrace(
-    Trace const &trace, std::string const &file){};
+    Trace const &trace, std::string const &file) {
+  throw std::runtime_error("writeTrace not yet implemented.");
+};
 
 auto ObspyWaveformProxy::readTrace(std::string const &file)
     -> std::unique_ptr<Trace> {
-  return nullptr;
+  throw std::runtime_error("readTrace not yet implemented.");
 };
 
-auto detail::CreateIndexMap(py::list const &tr)
+namespace detail {
+
+auto CreateIndexMap(py::list const &tr)
     -> std::unordered_map<std::string, std::size_t> {
 
-  // Extract a generic attribute from an Obspy "stats" object.
-  auto attr = [](std::string const &k, auto const &tr) {
-    py::dict m = tr.attr("stats");
-    for (auto const &[_k, v] : m) {
-      if (_k.cast<std::string>() == k) { return v.cast<std::string>(); }
-    };
-    return std::string("");
-  };
+  using Str = std::string;
 
   // Extract a trace's identifier.
   auto key = [=](auto const &tr,
                  auto const idx) -> std::pair<std::string, std::size_t> {
     return {
-        attr("network", tr) + "." + attr("station", tr) + "." +
-            attr("location", tr) + "." + attr("channel", tr),
+        StatsAttr<Str>("network", tr) + "." + StatsAttr<Str>("station", tr) +
+            "." + StatsAttr<Str>("location", tr) + "." +
+            StatsAttr<Str>("channel", tr),
         idx};
   };
 
@@ -98,14 +101,54 @@ auto detail::CreateIndexMap(py::list const &tr)
   return map;
 }
 
-auto detail::GetTraceData(py::object const &tr) -> std::span<double const> {
-  py::array_t<double> data = py::cast<py::object>(tr.attr("data"));
+auto GetTraceData(py::object const &tr) -> std::span<double const> {
+  auto data = py::cast<py::array_t<double>>(tr.attr("data"));
   return {data.data(), data.data() + data.size()};  // NOLINT
 };
 
+auto GetTraceIdx(ObspyWaveformProxy const &p, std::string const &id)
+    -> std::size_t {
+
+  auto idx = p.Map().find(id);
+  if (idx == p.Map().end()) {
+    throw std::runtime_error(
+        std::string("Trace with identifier " + id + " not found."));
+  }
+  return idx->second;
+}
+
+auto GetTrace(ObspyWaveformProxy const &p, std::size_t idx) -> py::object {
+  return py::cast<py::list>(p.Stream().attr("traces"))[idx];
+}
+
+}  // namespace detail
+
 }  // namespace HDD::Waveform
 
-void InitObspyWaveformProxy(pybind11::module_ &m) {
-  py::class_<HDD::Waveform::ObspyWaveformProxy>(m, "ObspyWaveformProxy")
-      .def(pybind11::init<pybind11::object>());
+using HDD::Waveform::ObspyWaveformProxy;
+
+void InitObspyWaveformProxy(py::module_ &m) {
+  py::class_<ObspyWaveformProxy>(m, "ObspyWaveformProxy")
+      .def(py::init<py::object>())
+      .def(
+          "getTraceData",
+          [](ObspyWaveformProxy &p, std::string const &nc,
+             std::string const &sc, std::string const &lc,
+             std::string const &cc) {
+            using namespace HDD::Waveform::detail;
+            auto const k = nc + "." + sc + "." + lc + "." + cc;
+            auto const tr = GetTraceData(GetTrace(p, GetTraceIdx(p, k)));
+            return py::array(py::ssize_t(tr.size()), tr.data());
+          })
+      .def(
+          "_getTraceAddr",
+          [](ObspyWaveformProxy &p, std::string const &nc,
+             std::string const &sc, std::string const &lc,
+             std::string const &cc) {
+            using namespace HDD::Waveform::detail;
+            auto const k = nc + "." + sc + "." + lc + "." + cc;
+            return (std::ostringstream()
+                    << GetTraceData(GetTrace(p, GetTraceIdx(p, k))).data())
+                .str();
+          });
 }
