@@ -142,7 +142,7 @@ template <typename T = pybind11::object>
 auto StatsAttr(std::string const &k, auto const &tr) {
   pybind11::dict m = tr.attr("stats");
   for (auto const &[_k, v] : m) {
-    if (_k.cast<std::string>() == k) { return v.cast<T>(); }
+    if (_k.template cast<std::string>() == k) { return v.template cast<T>(); }
   };
   return T{};
 }
