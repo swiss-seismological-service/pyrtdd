@@ -24,5 +24,6 @@ setup(
     cmake_install_dir="package/src/scrtdd",
     include_package_data=True,
     extras_require={"test": ["pytest"]},
+    install_requires=["numpy>=1.23.3", "obspy>=1.3.0"],
     python_requires=">=3.8",
 )
