@@ -9,6 +9,10 @@ from scrtdd.hdd import (
     ConstantVelocity,
     ObspyWaveformProxy,
     UTCClock,
+    DD,
+    SolverOptions,
+    ClusteringOptions,
+    NoWaveformProxy,
 )
 
 DATA_DIR = pathlib.Path(__file__).parent / "data"
@@ -17,6 +21,10 @@ Event = Catalog.Event
 Station = Catalog.Station
 Phase = Catalog.Phase
 PhaseType = Catalog.Phase.Type
+
+event_file = str(DATA_DIR / "starting-event.csv")
+phase_file = str(DATA_DIR / "starting-phase.csv")
+station_file = str(DATA_DIR / "starting-station.csv")
 
 
 def test_config_defaults():
@@ -208,10 +216,6 @@ def test_event():
 
 def test_catalog():
 
-    event_file = str(DATA_DIR / "starting-event.csv")
-    phase_file = str(DATA_DIR / "starting-phase.csv")
-    station_file = str(DATA_DIR / "starting-station.csv")
-
     c = Catalog(station_file, event_file, phase_file, False)
 
     st_test = c.getStations()["NET.ST08."]
@@ -262,3 +266,49 @@ def test_obspy_waveform_proxy():
     np.testing.assert_allclose(
         p.getTraceData("XX", "YY", "1", "Y"), np.linspace(1, 2, 101)
     )
+
+
+def test_dd():
+
+    con = Config()
+    cat = Catalog(station_file, event_file, phase_file, False)
+    ttt = ConstantVelocity(5.8, 3.36)
+    # prx = ObspyWaveformProxy(obspy.Stream([]))
+
+    dd = DD(cat, con, ttt, NoWaveformProxy())
+
+    cluster_cfg = ClusteringOptions()
+    cluster_cfg.numEllipsoids = 0
+    cluster_cfg.maxEllipsoidSize = 15
+    cluster_cfg.xcorrMaxEvStaDist = 0
+    cluster_cfg.xcorrMaxInterEvDist = 0
+    cluster_cfg.xcorrDetectMissingPhases = False
+
+    solver_cfg = SolverOptions()
+    solver_cfg.algoIterations = 20
+    solver_cfg.absLocConstraintStart = 0.3
+    solver_cfg.absLocConstraintEnd = 0.3
+    solver_cfg.dampingFactorStart = 0.01
+    solver_cfg.dampingFactorEnd = 0.01
+    solver_cfg.downWeightingByResidualStart = 0
+    solver_cfg.downWeightingByResidualEnd = 0
+    solver_cfg.airQuakes.action = SolverOptions.AQ_ACTION.RESET_DEPTH
+
+    cat_new = dd.relocateMultiEvents(cluster_cfg, solver_cfg)
+
+    event_file_true = str(DATA_DIR / "relocated-event.csv")
+    phase_file_true = str(DATA_DIR / "relocated-phase.csv")
+    station_file_true = str(DATA_DIR / "relocated-station.csv")
+
+    cat_true = Catalog(
+        station_file_true, event_file_true, phase_file_true, False
+    )
+
+    for en, eo in zip(
+        cat_new.getEvents().values(), cat_true.getEvents().values()
+    ):
+        np.testing.assert_allclose(en.latitude, eo.latitude, rtol=1e-5)
+        np.testing.assert_allclose(en.longitude, eo.longitude, rtol=1e-5)
+        np.testing.assert_allclose(en.depth, eo.depth, rtol=1e-5)
+        np.testing.assert_allclose(en.magnitude, eo.magnitude, rtol=1e-5)
+        # assert vn == vo

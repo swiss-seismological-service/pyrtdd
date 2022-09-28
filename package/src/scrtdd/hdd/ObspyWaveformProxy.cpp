@@ -1,6 +1,7 @@
 #include "ObspyWaveformProxy.h"
 #include "timewindow.h"
 #include "utctime.h"
+#include "waveform.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -128,7 +129,13 @@ auto GetTrace(ObspyWaveformProxy const &p, std::size_t idx) -> py::object {
 using HDD::Waveform::ObspyWaveformProxy;
 
 void InitObspyWaveformProxy(py::module_ &m) {
-  py::class_<ObspyWaveformProxy>(m, "ObspyWaveformProxy")
+
+  py::class_<HDD::Waveform::Proxy, std::shared_ptr<HDD::Waveform::Proxy>>(
+      m, "Proxy");
+
+  py::class_<
+      ObspyWaveformProxy, HDD::Waveform::Proxy,
+      std::shared_ptr<ObspyWaveformProxy>>(m, "ObspyWaveformProxy")
       .def(py::init<py::object>())
       .def(
           "getTraceData",
@@ -151,4 +158,10 @@ void InitObspyWaveformProxy(py::module_ &m) {
                     << GetTraceData(GetTrace(p, GetTraceIdx(p, k))).data())
                 .str();
           });
+
+  // Also just init "NoWaveformProxy" so we can use it.
+  py::class_<
+      HDD::Waveform::NoWaveformProxy, HDD::Waveform::Proxy,
+      std::shared_ptr<HDD::Waveform::NoWaveformProxy>>(m, "NoWaveformProxy")
+      .def(py::init<>());
 }

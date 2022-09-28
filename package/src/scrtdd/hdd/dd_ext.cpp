@@ -1,7 +1,15 @@
+#include "catalog.h"
+#include "cvttt.h"
 #include "dd.h"
 #include "pybind11/operators.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+#include "solver.h"
+#include "ttt.h"
+#include "waveform.h"
+
+#include <memory>
+#include <pybind11/detail/common.h>
 
 namespace py = pybind11;
 
@@ -68,4 +76,73 @@ void InitConfig(py::module_ &m) {
       .def_readwrite("noiseEnd", &Snr_t::noiseEnd)
       .def_readwrite("signalStart", &Snr_t::signalStart)
       .def_readwrite("signalEnd", &Snr_t::signalEnd);
+}
+
+void InitClusteringOptions(py::module_ &m) {
+  using namespace HDD;
+  py::class_<ClusteringOptions>(m, "ClusteringOptions")
+      .def(py::init<>())
+      .def_readwrite("numEllipsoids", &ClusteringOptions::numEllipsoids)
+      .def_readwrite("maxEllipsoidSize", &ClusteringOptions::maxEllipsoidSize)
+      .def_readwrite("xcorrMaxEvStaDist", &ClusteringOptions::xcorrMaxEvStaDist)
+      .def_readwrite(
+          "xcorrMaxInterEvDist", &ClusteringOptions::xcorrMaxInterEvDist)
+      .def_readwrite(
+          "xcorrDetectMissingPhases",
+          &ClusteringOptions::xcorrDetectMissingPhases);
+}
+
+void InitSolverOptions(py::module_ &m) {
+
+  using namespace HDD;
+  using AQ_ACTION = SolverOptions::AQ_ACTION;
+
+  using AirQuakes_t = decltype(HDD::SolverOptions::airQuakes);
+
+  auto solverOptions =
+      py::class_<SolverOptions>(m, "SolverOptions")
+          .def(py::init<>())
+          .def_readwrite("algoIterations", &SolverOptions::algoIterations)
+          .def_readwrite(
+              "absLocConstraintStart", &SolverOptions::absLocConstraintStart)
+          .def_readwrite(
+              "absLocConstraintEnd", &SolverOptions::absLocConstraintEnd)
+          .def_readwrite(
+              "dampingFactorStart", &SolverOptions::dampingFactorStart)
+          .def_readwrite("dampingFactorEnd", &SolverOptions::dampingFactorEnd)
+          .def_readwrite(
+              "downWeightingByResidualStart",
+              &SolverOptions::downWeightingByResidualStart)
+          .def_readwrite(
+              "downWeightingByResidualEnd",
+              &SolverOptions::downWeightingByResidualEnd)
+          .def_readwrite("airQuakes", &SolverOptions::airQuakes);
+
+  py::enum_<AQ_ACTION>(solverOptions, "AQ_ACTION")
+      .value("NONE", AQ_ACTION::NONE)
+      .value("RESET", AQ_ACTION::RESET)
+      .value("RESET_DEPTH", AQ_ACTION::RESET_DEPTH);
+
+  py::class_<AirQuakes_t>(solverOptions, "AIR_QUAKES_TYPE")
+      .def(py::init<>())
+      .def_readwrite("elevationThreshold", &AirQuakes_t::elevationThreshold)
+      .def_readwrite("action", &AirQuakes_t::action);
+}
+
+void InitDd(py::module_ &m) {
+
+  using namespace HDD;
+
+  py::class_<DD>(m, "DD")
+      .def(py::init<
+           Catalog const &, Config const &, std::shared_ptr<TravelTimeTable>,
+           std::shared_ptr<Waveform::Proxy>>())
+      .def(
+          "relocateMultiEvents",
+          py::overload_cast<ClusteringOptions const &, SolverOptions const &>(
+              &DD::relocateMultiEvents));
+
+  InitClusteringOptions(m);
+  InitSolverOptions(m);
+  InitConfig(m);
 }
