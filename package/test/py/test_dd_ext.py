@@ -1,7 +1,15 @@
 import datetime
 import pathlib
 
-from scrtdd.hdd import Catalog, Config, ConstantVelocity, UTCClock
+import numpy as np
+import obspy
+from scrtdd.hdd import (
+    Catalog,
+    Config,
+    ConstantVelocity,
+    ObspyWaveformProxy,
+    UTCClock,
+)
 
 DATA_DIR = pathlib.Path(__file__).parent / "data"
 
@@ -230,3 +238,27 @@ def test_catalog():
     assert ph_test.networkCode == "NET"
     assert ph_test.stationCode == "ST02"
     assert ph_test.isManual
+
+
+def test_obspy_waveform_proxy():
+
+    tr0 = obspy.Trace(
+        np.linspace(0, 1, 101),
+        {"network": "XX", "station": "YY", "channel": "Z", "location": "0"},
+    )
+
+    tr1 = obspy.Trace(
+        np.linspace(1, 2, 101),
+        {"network": "XX", "station": "YY", "channel": "Y", "location": "1"},
+    )
+
+    p = ObspyWaveformProxy(obspy.Stream([tr0, tr1]))
+
+    assert p._getTraceAddr("XX", "YY", "0", "Z") == hex(tr0.data.ctypes.data)
+    assert p._getTraceAddr("XX", "YY", "1", "Y") == hex(tr1.data.ctypes.data)
+    np.testing.assert_allclose(
+        p.getTraceData("XX", "YY", "0", "Z"), np.linspace(0, 1, 101)
+    )
+    np.testing.assert_allclose(
+        p.getTraceData("XX", "YY", "1", "Y"), np.linspace(1, 2, 101)
+    )
