@@ -4,4 +4,8 @@ from .hdd_ext import (
     ConstantVelocity,
     UTCClock,
     ObspyWaveformProxy,
+    DD,
+    SolverOptions,
+    ClusteringOptions,
+    NoWaveformProxy,
 )
