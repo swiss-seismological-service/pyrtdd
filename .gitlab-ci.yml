@@ -1,6 +1,5 @@
 default:
-  image: registry.gitlab.com/mondaic/projects/sed-dug-seis/scrtdd-wrappers:latest
-  tags: ["domino"]
+  image: registry.gitlab.com/mondaicsupport/sed/scrtdd-wrappers
   before_script:
     - export PATH=/home/user/.miniconda/envs/scrtdd/bin:${PATH}
 
