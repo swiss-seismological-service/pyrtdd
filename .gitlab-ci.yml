@@ -1,5 +1,5 @@
 default:
-  image: registry.gitlab.com/mondaicsupport/sed/scrtdd-wrappers
+  image: mondaic/pyrtdd:latest
   before_script:
     - export PATH=/home/user/.miniconda/envs/scrtdd/bin:${PATH}
 

@@ -3,6 +3,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 FROM debian:testing
+USER root
 WORKDIR /root
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -84,23 +85,23 @@ RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 USER user
-RUN cd ${HOME} \
-    && curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh \
+WORKDIR /home/user
+
+RUN curl -L https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh \
     && bash ./miniconda.sh -b -p ${HOME}/.miniconda \
     && rm -f ./miniconda.sh \
     && fish -c "set -U fish_user_paths $fish_user_paths $HOME/.miniconda/bin" \
     && fish -c "conda init fish" \
-    && fish -c "conda update -n base -c defaults conda"
+    && fish -c "conda update -n base -c defaults conda" \
+    && fish -c "conda install -n base --yes conda-libmamba-solver" \
+    && fish -c "conda config --set experimental_solver libmamba"
+
+SHELL ["fish", "-c"]
+ENV CPM_SOURCE_CACHE=/home/user/.cpm_cache
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ CUSTOM ENVIRONMENT ~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-USER user
-WORKDIR /home/user
-SHELL ["fish", "-c"]
 RUN conda update -n base -c defaults conda \
-  && conda create -c conda-forge -n scrtdd python=3.9 scikit-build=0.15.0 pybind11=2.9.2 pytest
-
-ENV CPM_SOURCE_CACHE=/home/user/.cpm_cache
-USER ROOT
+  && conda create -c conda-forge -n scrtdd python=3.9 scikit-build=0.15.0 pybind11=2.9.2 pytest numpy>=1.23.3 obspy>=1.3.0
