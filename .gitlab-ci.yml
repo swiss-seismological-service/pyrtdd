@@ -1,5 +1,5 @@
 default:
-  image: mondaic/pyrtdd:latest
+  image: mondaic/sed:pyrtdd
   before_script:
     - export PATH=/home/user/.miniconda/envs/scrtdd/bin:${PATH}
 
