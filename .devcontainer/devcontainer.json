@@ -31,7 +31,7 @@
         "zainchen.json",
         "richie5um2.vscode-sort-json"
     ],
-    "image": "registry.gitlab.com/mondaic/projects/sed-dug-seis/scrtdd-wrappers:latest",
+    "image": "mondaic/sed:pyrtdd",
     "remoteUser": "user",
     "runArgs": [
         "--cap-add=SYS_PTRACE",
