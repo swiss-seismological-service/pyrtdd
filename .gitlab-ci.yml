@@ -1,7 +1,7 @@
 default:
-  image: mondaic/sed:pyrtdd
+  image: mondaic/sed:pyrtdd-ci
   before_script:
-    - export PATH=/home/user/.miniconda/envs/scrtdd/bin:${PATH}
+    - export PATH=/home/user/.miniconda/envs/pyrtdd/bin:${PATH}
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
@@ -27,6 +27,18 @@ build-cpm-cache:
     - key: cpm
     - paths: [.cache/cpm]
     - policy: pull
+
+gcc-11:
+  stage: build-test
+  script:
+    - CC=gcc-11
+      CXX=g++-11
+      SKBUILD_CONFIGURE_OPTIONS="-DCMAKE_C_COMPILER:STRING=gcc-11 -DCMAKE_CXX_COMPILER:STRING=g++-11 -DCPM_SOURCE_CACHE:PATH=$CI_PROJECT_DIR/.cache/cpm"
+      SKBUILD_BUILD_OPTIONS="-v"
+      pip install -v .
+    - pytest -v
+  <<: *cache-config
+  needs: []
 
 gcc-12:
   stage: build-test
