@@ -1,6 +1,6 @@
 # pyrtdd
 
-Python wrappers for the SED's double difference source relocation code [`scrtdd`](https://docs.gempa.de/scrtdd/current/).
+Python wrapper for the C++ double-difference relocation library from [scrtdd](https://github.com/swiss-seismological-service/scrtdd).
 
 # Installation
 
