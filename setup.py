@@ -13,12 +13,12 @@ except ImportError:
     raise
 
 setup(
-    name="scrtdd",
+    name="pyrtdd",
     version="0.0.1",
-    author="Mondaic Ltd.",
-    author_email="support@mondaic.com",
-    description="Python bindings for the SED's `scrtdd` library",
-    url="https://gitlab.com/Mondaic/Projects/sed-dug-seis/scrtdd-wrappers",
+    author="Luca Scarabello, Mondaic Ltd.",
+    author_email="luca.scarabello@erdw.ethz.ch, support@mondaic.com",
+    description="Python wrapper for the C++ double-difference relocation library from scrtdd",
+    url="https://github.com/swiss-seismological-service/pyrtdd",
     packages=["scrtdd", "scrtdd.hdd"],
     package_dir={"": "package/src"},
     cmake_install_dir="package/src/scrtdd",
