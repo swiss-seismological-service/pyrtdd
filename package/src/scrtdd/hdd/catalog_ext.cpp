@@ -153,7 +153,8 @@ void InitCatalog(py::module_ &m) {
                          r[u].push_back(_p);
                        }
                        return r;
-                     });
+                     })
+                     .def("writeToFile", &HDD::Catalog::writeToFile);
 
   InitStation(catalog);
   InitEvent(catalog);

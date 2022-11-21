@@ -21,7 +21,9 @@ SET (
   ${HDD_EXT_DIR}/hdd_ext.cpp
   ${HDD_EXT_DIR}/dd_ext.cpp
   ${HDD_EXT_DIR}/catalog_ext.cpp
+  ${HDD_EXT_DIR}/ttt_ext.cpp
   ${HDD_EXT_DIR}/cvttt_ext.cpp
+  ${HDD_EXT_DIR}/nllttt_ext.cpp
   ${HDD_EXT_DIR}/utc_clock_ext.cpp
 )
 

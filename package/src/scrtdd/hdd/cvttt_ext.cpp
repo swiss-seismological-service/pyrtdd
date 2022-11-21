@@ -6,10 +6,7 @@
 
 namespace py = pybind11;
 
-void InitTtt(py::module_ &m) {
-
-  py::class_<HDD::TravelTimeTable, std::shared_ptr<HDD::TravelTimeTable>>(
-      m, "TravelTimeTable");  // NOLINT
+void InitCvTtt(py::module_ &m) {
 
   auto cvTtt = py::class_<
       HDD::ConstantVelocity, HDD::TravelTimeTable,

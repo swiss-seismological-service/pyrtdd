@@ -82,6 +82,14 @@ void InitClusteringOptions(py::module_ &m) {
   using namespace HDD;
   py::class_<ClusteringOptions>(m, "ClusteringOptions")
       .def(py::init<>())
+      .def_readwrite("minWeight", &ClusteringOptions::minWeight)
+      .def_readwrite("minEStoIEratio", &ClusteringOptions::minEStoIEratio)
+      .def_readwrite("minESdist", &ClusteringOptions::minESdist)
+      .def_readwrite("maxESdist", &ClusteringOptions::maxESdist)
+      .def_readwrite("minNumNeigh", &ClusteringOptions::minNumNeigh)
+      .def_readwrite("maxNumNeigh", &ClusteringOptions::maxNumNeigh)
+      .def_readwrite("minDTperEvt", &ClusteringOptions::minDTperEvt)
+      .def_readwrite("maxDTperEvt", &ClusteringOptions::maxDTperEvt)
       .def_readwrite("numEllipsoids", &ClusteringOptions::numEllipsoids)
       .def_readwrite("maxEllipsoidSize", &ClusteringOptions::maxEllipsoidSize)
       .def_readwrite("xcorrMaxEvStaDist", &ClusteringOptions::xcorrMaxEvStaDist)
@@ -95,13 +103,14 @@ void InitClusteringOptions(py::module_ &m) {
 void InitSolverOptions(py::module_ &m) {
 
   using namespace HDD;
-  using AQ_ACTION = SolverOptions::AQ_ACTION;
+  using AQ_ACTION = SolverOptions::AQ_ACTION;                                                
 
   using AirQuakes_t = decltype(HDD::SolverOptions::airQuakes);
 
   auto solverOptions =
       py::class_<SolverOptions>(m, "SolverOptions")
           .def(py::init<>())
+          .def_readwrite("type", &SolverOptions::type)
           .def_readwrite("algoIterations", &SolverOptions::algoIterations)
           .def_readwrite(
               "absLocConstraintStart", &SolverOptions::absLocConstraintStart)
@@ -116,13 +125,16 @@ void InitSolverOptions(py::module_ &m) {
           .def_readwrite(
               "downWeightingByResidualEnd",
               &SolverOptions::downWeightingByResidualEnd)
-          .def_readwrite("airQuakes", &SolverOptions::airQuakes);
+        .def_readwrite("usePickUncertainty", &SolverOptions::usePickUncertainty)
+        .def_readwrite("absTTDiffObsWeight", &SolverOptions::absTTDiffObsWeight)
+        .def_readwrite("xcorrObsWeight", &SolverOptions::xcorrObsWeight)
+        .def_readwrite("airQuakes", &SolverOptions::airQuakes);
 
   py::enum_<AQ_ACTION>(solverOptions, "AQ_ACTION")
       .value("NONE", AQ_ACTION::NONE)
       .value("RESET", AQ_ACTION::RESET)
       .value("RESET_DEPTH", AQ_ACTION::RESET_DEPTH);
-
+                                                  
   py::class_<AirQuakes_t>(solverOptions, "AIR_QUAKES_TYPE")
       .def(py::init<>())
       .def_readwrite("elevationThreshold", &AirQuakes_t::elevationThreshold)
