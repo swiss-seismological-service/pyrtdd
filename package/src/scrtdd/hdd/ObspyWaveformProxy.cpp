@@ -154,9 +154,9 @@ void InitObspyWaveformProxy(py::module_ &m) {
              std::string const &cc) {
             using namespace HDD::Waveform::detail;
             auto const k = nc + "." + sc + "." + lc + "." + cc;
-            return (std::ostringstream()
-                    << GetTraceData(GetTrace(p, GetTraceIdx(p, k))).data())
-                .str();
+	    std::ostringstream tmp;
+	    tmp << GetTraceData(GetTrace(p, GetTraceIdx(p, k))).data();
+            return tmp.str();
           });
 
   // Also just init "NoWaveformProxy" so we can use it.
