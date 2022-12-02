@@ -56,7 +56,7 @@ from scrtdd.hdd import (
 
 cfg = Config()
 cfg.validPphases = ['Pg', 'P'] # select catalog phases to be used as P
-cfg.validSphases = ['Pg', 'P'] # select catalog phases to be used as S
+cfg.validSphases = ['Sg', 'S'] # select catalog phases to be used as S
 
 #
 # Here we specify the input catalog. We use the test catalong for this example
