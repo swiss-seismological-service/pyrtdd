@@ -38,7 +38,9 @@ Python wrapper for the C++ double-difference relocation library from [scrtdd](ht
 
 # Example
 
-Please note that the code is in development stage. The documentation is not ready yet and you should use the [scrtdd](https://github.com/swiss-seismological-service/scrtdd) manual as a temporary reference.
+Please note that the code is in development stage. The documentation is not ready yet and you should use the [scrtdd](https://github.com/swiss-seismological-service/scrtdd) manual as a temporary reference. In particular, have a look at the [catalog format](https://docs.gempa.de/scrtdd/current/base/multievent.html#event-catalog-plain-csv-files) and the [relocation process](https://docs.gempa.de/scrtdd/current/base/multievent.html#relocation-process) paragraphs.
+
+
 
 ```python
 from scrtdd.hdd import (
@@ -60,9 +62,6 @@ cfg.validSphases = ['Sg', 'S'] # select catalog phases to be used as S
 
 #
 # Here we specify the input catalog. We use the test catalong for this example
-#
-# You can find the details of the catalog format here: 
-#   https://docs.gempa.de/scrtdd/current/base/multievent.html#event-catalog-plain-csv-files
 #
 cat = Catalog('./package/test/py/data/starting-station.csv',
               './package/test/py/data/starting-event.csv',
@@ -148,7 +147,6 @@ solver_cfg.airQuakes.action = SolverOptions.AQ_ACTION.RESET_DEPTH # NONE, RESET 
 
 #
 # Perform the relocation
-# See https://docs.gempa.de/scrtdd/current/base/multievent.html#relocation-process
 #
 cat_new = dd.relocateMultiEvents(cluster_cfg, solver_cfg)
 
