@@ -148,6 +148,7 @@ solver_cfg.airQuakes.action = SolverOptions.AQ_ACTION.RESET_DEPTH # NONE, RESET 
 
 #
 # Perform the relocation
+# See https://docs.gempa.de/scrtdd/current/base/multievent.html#relocation-process
 #
 cat_new = dd.relocateMultiEvents(cluster_cfg, solver_cfg)
 
