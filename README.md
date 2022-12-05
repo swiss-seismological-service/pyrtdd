@@ -57,8 +57,13 @@ from scrtdd.hdd import (
     )
 
 cfg = Config()
-cfg.validPphases = ['Pg', 'P'] # select catalog phases to be used as P
-cfg.validSphases = ['Sg', 'S'] # select catalog phases to be used as S
+
+#
+# Defines a priority list of accepted P and S phases. Phases not in the list will be discarded from the catalog.
+# If multiple phases exist for the same event at a station, the first one in the list will be used
+# 
+cfg.validPphases = ['Pg', 'P']
+cfg.validSphases = ['Sg', 'S']
 
 #
 # Here we specify the input catalog. We use the test catalong for this example
@@ -87,13 +92,15 @@ dd = DD(cat, cfg, ttt, NoWaveformProxy())
 
 #
 # Define clustering options
+# These options control which events and phases are used in the double-difference equation system. 
 #
 cluster_cfg = ClusteringOptions()
 
 #
 # Quality settings
+# Allow to drop poorly connected events or bad phases
 #
-cluster_cfg.minNumNeigh = 4 # min neighbors required
+cluster_cfg.minNumNeigh = 4 # min neighbors required for an event
 cluster_cfg.minDTperEvt = 8 # min differential times per event pair required (i.e. how many P+S phases)
 cluster_cfg.minWeight = 0. # min weight of phases required (0-1). Uncertainties have to be included in the catalog
 
@@ -101,7 +108,7 @@ cluster_cfg.minWeight = 0. # min weight of phases required (0-1). Uncertainties 
 # Performance settings:
 #  limit maxDTperEvt only if the relocation is too slow, otherwise keep them all 
 #  maxNumNeigh doesn't usually improve results above 30-40
-cluster_cfg.maxNumNeigh = 40 # max neighbors allowed (furthest events are discarded) 0 -> disable
+cluster_cfg.maxNumNeigh = 40 # max neighbors allowed. 0 -> disable
 cluster_cfg.maxDTperEvt = 0 # max differential times per event pair required (Including P+S) 0 -> disable
 
 #
@@ -111,16 +118,17 @@ cluster_cfg.minEStoIEratio = 0. # min hypocenter-station to interevent distance 
 cluster_cfg.minESdist = 0. # min hypocenter-station distance required
 cluster_cfg.maxESdist = -1 # max hypocenter-station distance allowed (-1 -> disable)
 
-# Neighbouring event selection
-# Up to cluster_cfg.maxNumNeigh neighbours are selected within an area of cluster_cfg.maxEllipsoidSize
-cluster_cfg.maxEllipsoidSize = 5 # km
-
-# Neighbours selection method
-#  if numEllipsoids = 0 -> disable the ellipsoid, closest events are preferred
-#  else (Waldhauser 2009): to assure a spatially homogeneous subsampling, reference events are
-#  selected within each of cluster_cfg.numEllipsoids concentric, vertically longated ellipsoidal
-#  layers of increasing thickness. Each layer has 8 quadrant
+# Neighbours selection
+# This option controls how neighbouring events are selected. In the simpliest form 'numEllipsoids'
+# is set to 0 and 'maxNumNeigh' neighbours are selected on the nearest neighbour basis within a search
+# distance of 'maxEllipsoidSize'. This is the default choice for multi-event mode.
+# When 'numEllipsoids' is > 0, the ellipsoid selection algorithm from Waldhauser 2009: to assure a
+# spatially homogeneous subsampling, reference events are selected within each of `numEllipsoids`
+# concentric ellipsoidal layers of increasing thickness. Each layer is split up into its 8 quadrants
+# (or cells), and the neighboring events are selected from each ellipsoid/quadrant combination in a
+# round robin fashion until 'maxNumNeigh' is reached.
 cluster_cfg.numEllipsoids = 0
+cluster_cfg.maxEllipsoidSize = 5 # Km
 
 # There is no cross-correlation binding to python yet :(
 cluster_cfg.xcorrMaxEvStaDist = 0
@@ -128,18 +136,23 @@ cluster_cfg.xcorrMaxInterEvDist = 0
 cluster_cfg.xcorrDetectMissingPhases = False
 
 #
-# Define solver options
+# Double-difference equations system solver configuration
 #
 solver_cfg = SolverOptions()
-solver_cfg.type = "LSMR" # LSMR or LSQR
-solver_cfg.algoIterations = 20
+
+solver_cfg.type = "LSMR" # Solver algorithm to use: either LSMR or LSQR
+solver_cfg.algoIterations = 20 # how many iterations the solver performs
+
 solver_cfg.absLocConstraintStart = 0.3 # 0 -> disable absolute location constraint
 solver_cfg.absLocConstraintEnd = 0.3   # 0 -> disable absolute location constraint
 solver_cfg.dampingFactorStart = 0.01   # 0 -> disable damping factor
 solver_cfg.dampingFactorEnd = 0.01     # 0 -> disable damping factor
+
 solver_cfg.downWeightingByResidualStart = 10. # 0 -> disbale downweighting
 solver_cfg.downWeightingByResidualEnd = 3.    # 0 -> disbale downweighting
+
 solver_cfg.usePickUncertainty = False # if True then phase uncertaintis must be populated
+
 # Air-quakes are events whose depth shift above the range of the velocity
 # model (typically 0) during the inversion
 solver_cfg.airQuakes.elevationThreshold = 0 # meters, threshold above which an event is considered an air-quake
