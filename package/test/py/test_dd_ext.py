@@ -3,7 +3,7 @@ import pathlib
 
 import numpy as np
 import obspy
-from scrtdd.hdd import (
+from pyrtdd.hdd import (
     Catalog,
     Config,
     ConstantVelocity,

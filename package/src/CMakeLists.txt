@@ -14,7 +14,10 @@ EXECUTE_PROCESS (
 LIST (APPEND CMAKE_PREFIX_PATH "${_tmp_dir}")
 FIND_PACKAGE (pybind11 CONFIG REQUIRED)
 
-SET (HDD_EXT_DIR scrtdd/hdd)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/../../deps/scrtdd/scrtdd/libs/hdd)
+
+
+SET (HDD_EXT_DIR pyrtdd/hdd)
 SET (
   SOURCES
   ${HDD_EXT_DIR}/ObspyWaveformProxy.cpp

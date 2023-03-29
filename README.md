@@ -12,10 +12,10 @@ Python wrapper for the C++ double-difference relocation library from [scrtdd](ht
     git clone --recursive https://github.com/swiss-seismological-service/pyrtdd.git
     ```
 
-2. Create a `pyrtdd` Anaconda environment using the included `environment.yml` file:
+2. Create a `pyrtdd` Anaconda environment where you will install pyrtdd:
 
     ```
-    conda env create -n pyrtdd -f environment.yml
+    conda env create -n pyrtdd
     ```
 
 3. Activate the `pyrtdd` anaconda enviroment:
@@ -27,14 +27,9 @@ Python wrapper for the C++ double-difference relocation library from [scrtdd](ht
 4. Install `pyrtdd` from source:
 
     ```
-    CC=gcc-11 CXX=g++-11 SKBUILD_CONFIGURE_OPTIONS="-DCMAKE_C_COMPILER:STRING=gcc-11 -DCMAKE_CXX_COMPILER:STRING=g++-11" pip install -v .
+    pip install -v .
     ```
     
-# Installation notes
-
-- The build process can take awhile: `pyrtdd` uses the [CPM](https://github.com/cpm-cmake/CPM.cmake) package management system to download Boost, a dependency of `scrtdd`. If you will be building the library a lot, be sure to check out the caching section of the CPM documentation.
-- The entire build process is also outlined in the continuous integration (CI) process for this repository, which is described by the `.gitlab-ci.yml` file. The CI builds `pyrtdd` from a Ubuntu 22.04 base image, which can be reconstructed from the `Dockerfile.ci` file.
-
 
 # Example
 
@@ -43,7 +38,7 @@ Please note that the code is in development stage. The documentation is not read
 
 
 ```python
-from scrtdd.hdd import (
+from pyrtdd.hdd import (
         Catalog,
         Config,
         ConstantVelocity,

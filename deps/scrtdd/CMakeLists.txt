@@ -1,15 +1,14 @@
-SET (SC3_PACKAGE_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/scrtdd)
 
-SET (
-  HDD_COMPILE_ADAPTERS
-  OFF
-  CACHE BOOL "Skip compilation of adapters" FORCE
-)
+# stall libhdd header files.
+SET(HDD_INSTALL_HEADERS OFF)
 
-SET (
-  HDD_SHARED_LIB
-  OFF
-  CACHE BOOL "BUILD a static version of the HDD lib" FORCE
-)
+# Build libhdd as a shared library instead of static
+SET(HDD_SHARED_LIB OFF)
+
+# Build libhdd tests. This will be enabled also when SC_GLOBAL_UNITTESTS
+SET(HDD_TESTS OFF)
+
+# Build libhdd using boost::filesystem instead of std::filesystem
+SET(HDD_USE_BOOST_FS OFF)
 
 ADD_SUBDIRECTORY (scrtdd/libs/hdd)
