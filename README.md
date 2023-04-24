@@ -149,9 +149,14 @@ solver_cfg.downWeightingByResidualEnd = 3.    # 0 -> disbale downweighting
 solver_cfg.usePickUncertainty = False # if True then phase uncertaintis must be populated
 
 # Air-quakes are events whose depth shift above the range of the velocity
-# model (typically 0) during the inversion
-solver_cfg.airQuakes.elevationThreshold = 0 # meters, threshold above which an event is considered an air-quake
-solver_cfg.airQuakes.action = SolverOptions.AQ_ACTION.RESET_DEPTH # NONE, RESET or RESET_DEPTH
+# model (typically 0, but confiurable) during the inversion. Possible actions are:
+# NONE - do nothing the event relocation will fail
+# RESET - reset quake location to previous iteration, that is before it became an air-quake
+# RESET_DEPTH - reset only quake depth to previous iteration
+solver_cfg.airQuakes.action = SolverOptions.AQ_ACTION.NONE 
+solver_cfg.airQuakes.elevationThreshold = 0 # meters, threshold above which an event is
+                                            # considered an air-quake. Useful only if
+                                            # action is not NONE
 
 #
 # Perform the relocation
