@@ -15,7 +15,7 @@ Python wrapper for the C++ double-difference relocation library from [scrtdd](ht
 2. Create a `pyrtdd` Anaconda environment where you will install pyrtdd:
 
     ```
-    conda env create -n pyrtdd
+    conda create -n pyrtdd
     ```
 
 3. Activate the `pyrtdd` anaconda enviroment:
