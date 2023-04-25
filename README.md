@@ -29,7 +29,13 @@ Python wrapper for the C++ double-difference relocation library from [scrtdd](ht
     ```
     pip install -v .
     ```
-    
+
+Or to specify a particular compiler version:
+
+    ```
+    CC=gcc-10 CXX=g++-10  SKBUILD_CONFIGURE_OPTIONS="-DCMAKE_C_COMPILER:STRING=gcc-10 -DCMAKE_CXX_COMPILER:STRING=g++-10" pip install -v .
+    ```
+
 
 # Example
 
