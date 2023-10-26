@@ -1,3 +1,9 @@
+[![DOI](https://zenodo.org/badge/246001157.svg)](https://zenodo.org/badge/latestdoi/246001157)
+
+Please cite the code as:
+
+"Luca Scarabello & Tobias Diehl (2021). swiss-seismological-service/scrtdd. Zenodo doi: 10.5281/zenodo.5337361"
+
 # pyrtdd
 
 Python wrapper for the C++ double-difference relocation library from [scrtdd](https://github.com/swiss-seismological-service/scrtdd).
