@@ -130,12 +130,12 @@ using HDD::Waveform::ObspyWaveformProxy;
 
 void InitObspyWaveformProxy(py::module_ &m) {
 
-  py::class_<HDD::Waveform::Proxy, std::shared_ptr<HDD::Waveform::Proxy>>(
-      m, "Proxy");
+  // `smart_holder` allows Proxy instances constructed in Python to later
+  // have their ownership moved into a C++ `unique_ptr<Proxy>` (HDD::DD's
+  // constructor), which a plain `std::unique_ptr` holder cannot do.
+  py::classh<HDD::Waveform::Proxy>(m, "Proxy");
 
-  py::class_<
-      ObspyWaveformProxy, HDD::Waveform::Proxy,
-      std::shared_ptr<ObspyWaveformProxy>>(m, "ObspyWaveformProxy")
+  py::classh<ObspyWaveformProxy, HDD::Waveform::Proxy>(m, "ObspyWaveformProxy")
       .def(py::init<py::object>())
       .def(
           "getTraceData",
@@ -160,8 +160,7 @@ void InitObspyWaveformProxy(py::module_ &m) {
           });
 
   // Also just init "NoWaveformProxy" so we can use it.
-  py::class_<
-      HDD::Waveform::NoWaveformProxy, HDD::Waveform::Proxy,
-      std::shared_ptr<HDD::Waveform::NoWaveformProxy>>(m, "NoWaveformProxy")
+  py::classh<HDD::Waveform::NoWaveformProxy, HDD::Waveform::Proxy>(
+      m, "NoWaveformProxy")
       .def(py::init<>());
 }

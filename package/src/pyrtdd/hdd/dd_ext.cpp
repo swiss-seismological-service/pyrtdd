@@ -1,40 +1,34 @@
 #include "catalog.h"
-#include "cvttt.h"
+#include "clustering.h"
 #include "dd.h"
 #include "pybind11/operators.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
-#include "solver.h"
 #include "ttt.h"
 #include "waveform.h"
+#include "xcorrcache.h"
 
 #include <memory>
 #include <pybind11/detail/common.h>
+#include <string>
 
 namespace py = pybind11;
 
 using StrVec = std::vector<std::string>;
 
-using XCorr_t = HDD::Config::XCorr;
-using Snr_t = decltype(HDD::Config::snr);
 using Wff_t = decltype(HDD::Config::wfFilter);
-
-auto operator==(XCorr_t const &a, XCorr_t const &b) {
-  return a.minCoef == b.minCoef && a.startOffset == b.startOffset &&
-      a.endOffset == b.endOffset && a.maxDelay == b.maxDelay &&
-      a.components == b.components;
-};
+using XCorr_t = HDD::XcorrOptions::XCorr;
 
 auto operator==(Wff_t const &a, Wff_t const &b) {
   return a.filterStr == b.filterStr && a.extraTraceLen == b.extraTraceLen &&
       a.resampleFreq == b.resampleFreq;
 };
 
-auto operator==(Snr_t const &a, Snr_t const &b) {
-  return a.minSnr == b.minSnr && a.noiseEnd == b.noiseEnd &&
-      a.noiseStart == b.noiseStart && a.signalStart == b.signalStart &&
-      a.signalEnd == b.signalEnd;
-}
+auto operator==(XCorr_t const &a, XCorr_t const &b) {
+  return a.minCoef == b.minCoef && a.startOffset == b.startOffset &&
+      a.endOffset == b.endOffset && a.winScaling == b.winScaling &&
+      a.maxDelay == b.maxDelay && a.components == b.components;
+};
 
 void InitConfig(py::module_ &m) {
 
@@ -43,21 +37,10 @@ void InitConfig(py::module_ &m) {
   config.def(py::init<>())
       .def_readwrite("validPphases", &HDD::Config::validPphases)
       .def_readwrite("validSphases", &HDD::Config::validSphases)
-      .def_readwrite("compatibleChannels", &HDD::Config::compatibleChannels)
-      .def_readwrite("diskTraceMinLen", &HDD::Config::diskTraceMinLen)
-      .def_readwrite("xcorr", &HDD::Config::xcorr)
-      .def_readwrite("wfFilter", &HDD::Config::wfFilter)
-      .def_readwrite("snr", &HDD::Config::snr);
-
-  py::class_<XCorr_t>(config, "XCorr")
-      .def(py::init<>())
-      .def(py::init<double, double, double, double, StrVec>())
-      .def("__eq__", [](XCorr_t const &a, XCorr_t const &b) { return a == b; })
-      .def_readwrite("minCoef", &HDD::Config::XCorr::minCoef)
-      .def_readwrite("startOffset", &HDD::Config::XCorr::startOffset)
-      .def_readwrite("endOffset", &HDD::Config::XCorr::endOffset)
-      .def_readwrite("maxDelay", &HDD::Config::XCorr::maxDelay)
-      .def_readwrite("components", &HDD::Config::XCorr::components);
+      .def_readwrite(
+          "pickUncertaintyClasses", &HDD::Config::pickUncertaintyClasses)
+      .def_readwrite("PSTableOnly", &HDD::Config::PSTableOnly)
+      .def_readwrite("wfFilter", &HDD::Config::wfFilter);
 
   py::class_<Wff_t>(config, "WF_FILTER_TYPE")
       .def(py::init<>())
@@ -66,79 +49,105 @@ void InitConfig(py::module_ &m) {
       .def_readwrite("filterStr", &Wff_t::filterStr)
       .def_readwrite("resampleFreq", &Wff_t::resampleFreq)
       .def_readwrite("extraTraceLen", &Wff_t::extraTraceLen);
-
-  py::class_<Snr_t>(config, "SNR_TYPE")
-      .def(py::init<>())
-      .def(py::init<double, double, double, double, double>())
-      .def("__eq__", [](Snr_t const &a, Snr_t const &b) { return a == b; })
-      .def_readwrite("minSnr", &Snr_t::minSnr)
-      .def_readwrite("noiseStart", &Snr_t::noiseStart)
-      .def_readwrite("noiseEnd", &Snr_t::noiseEnd)
-      .def_readwrite("signalStart", &Snr_t::signalStart)
-      .def_readwrite("signalEnd", &Snr_t::signalEnd);
 }
 
 void InitClusteringOptions(py::module_ &m) {
   using namespace HDD;
   py::class_<ClusteringOptions>(m, "ClusteringOptions")
       .def(py::init<>())
-      .def_readwrite("minWeight", &ClusteringOptions::minWeight)
-      .def_readwrite("minEStoIEratio", &ClusteringOptions::minEStoIEratio)
-      .def_readwrite("minESdist", &ClusteringOptions::minESdist)
-      .def_readwrite("maxESdist", &ClusteringOptions::maxESdist)
+      .def_readwrite(
+          "minEvStaToInterEvRatio", &ClusteringOptions::minEvStaToInterEvRatio)
+      .def_readwrite("minEvStaDist", &ClusteringOptions::minEvStaDist)
+      .def_readwrite("maxEvStaDist", &ClusteringOptions::maxEvStaDist)
       .def_readwrite("minNumNeigh", &ClusteringOptions::minNumNeigh)
       .def_readwrite("maxNumNeigh", &ClusteringOptions::maxNumNeigh)
-      .def_readwrite("minDTperEvt", &ClusteringOptions::minDTperEvt)
-      .def_readwrite("maxDTperEvt", &ClusteringOptions::maxDTperEvt)
-      .def_readwrite("numEllipsoids", &ClusteringOptions::numEllipsoids)
-      .def_readwrite("maxEllipsoidSize", &ClusteringOptions::maxEllipsoidSize)
-      .def_readwrite("xcorrMaxEvStaDist", &ClusteringOptions::xcorrMaxEvStaDist)
-      .def_readwrite(
-          "xcorrMaxInterEvDist", &ClusteringOptions::xcorrMaxInterEvDist)
-      .def_readwrite(
-          "xcorrDetectMissingPhases",
-          &ClusteringOptions::xcorrDetectMissingPhases);
+      .def_readwrite("minNumPhases", &ClusteringOptions::minNumPhases)
+      .def_readwrite("maxNumPhases", &ClusteringOptions::maxNumPhases)
+      .def_readwrite("maxNeighbourDist", &ClusteringOptions::maxNeighbourDist)
+      .def_readwrite("numEllipsoids", &ClusteringOptions::numEllipsoids);
+}
+
+void InitXcorrOptions(py::module_ &m) {
+  using namespace HDD;
+
+  auto xcorrOptions =
+      py::class_<XcorrOptions>(m, "XcorrOptions")
+          .def(py::init<>())
+          .def_readwrite("enable", &XcorrOptions::enable)
+          .def_readwrite("minEvStaDist", &XcorrOptions::minEvStaDist)
+          .def_readwrite("maxEvStaDist", &XcorrOptions::maxEvStaDist)
+          .def_readwrite("maxInterEvDist", &XcorrOptions::maxInterEvDist)
+          .def_readwrite("phase", &XcorrOptions::phase);
+
+  py::class_<XCorr_t>(xcorrOptions, "XCorr")
+      .def(py::init<>())
+      .def(py::init<double, double, double, double, double, StrVec>())
+      .def("__eq__", [](XCorr_t const &a, XCorr_t const &b) { return a == b; })
+      .def_readwrite("minCoef", &XCorr_t::minCoef)
+      .def_readwrite("startOffset", &XCorr_t::startOffset)
+      .def_readwrite("endOffset", &XCorr_t::endOffset)
+      .def_readwrite("winScaling", &XCorr_t::winScaling)
+      .def_readwrite("maxDelay", &XCorr_t::maxDelay)
+      .def_readwrite("components", &XCorr_t::components);
 }
 
 void InitSolverOptions(py::module_ &m) {
 
   using namespace HDD;
-  using AQ_ACTION = SolverOptions::AQ_ACTION;                                                
 
-  using AirQuakes_t = decltype(HDD::SolverOptions::airQuakes);
-
-  auto solverOptions =
-      py::class_<SolverOptions>(m, "SolverOptions")
-          .def(py::init<>())
-          .def_readwrite("type", &SolverOptions::type)
-          .def_readwrite("algoIterations", &SolverOptions::algoIterations)
-          .def_readwrite(
-              "absLocConstraintStart", &SolverOptions::absLocConstraintStart)
-          .def_readwrite(
-              "absLocConstraintEnd", &SolverOptions::absLocConstraintEnd)
-          .def_readwrite(
-              "dampingFactorStart", &SolverOptions::dampingFactorStart)
-          .def_readwrite("dampingFactorEnd", &SolverOptions::dampingFactorEnd)
-          .def_readwrite(
-              "downWeightingByResidualStart",
-              &SolverOptions::downWeightingByResidualStart)
-          .def_readwrite(
-              "downWeightingByResidualEnd",
-              &SolverOptions::downWeightingByResidualEnd)
-        .def_readwrite("usePickUncertainty", &SolverOptions::usePickUncertainty)
-        .def_readwrite("absTTDiffObsWeight", &SolverOptions::absTTDiffObsWeight)
-        .def_readwrite("xcorrObsWeight", &SolverOptions::xcorrObsWeight)
-        .def_readwrite("airQuakes", &SolverOptions::airQuakes);
-
-  py::enum_<AQ_ACTION>(solverOptions, "AQ_ACTION")
-      .value("NONE", AQ_ACTION::NONE)
-      .value("RESET", AQ_ACTION::RESET)
-      .value("RESET_DEPTH", AQ_ACTION::RESET_DEPTH);
-                                                  
-  py::class_<AirQuakes_t>(solverOptions, "AIR_QUAKES_TYPE")
+  py::class_<SolverOptions>(m, "SolverOptions")
       .def(py::init<>())
-      .def_readwrite("elevationThreshold", &AirQuakes_t::elevationThreshold)
-      .def_readwrite("action", &AirQuakes_t::action);
+      .def_readwrite("type", &SolverOptions::type)
+      .def_readwrite("L2normalization", &SolverOptions::L2normalization)
+      .def_readwrite("solverIterations", &SolverOptions::solverIterations)
+      .def_readwrite("algoIterations", &SolverOptions::algoIterations)
+      .def_readwrite(
+          "absLocConstraintStart", &SolverOptions::absLocConstraintStart)
+      .def_readwrite(
+          "absLocConstraintEnd", &SolverOptions::absLocConstraintEnd)
+      .def_readwrite("dampingFactorStart", &SolverOptions::dampingFactorStart)
+      .def_readwrite("dampingFactorEnd", &SolverOptions::dampingFactorEnd)
+      .def_readwrite(
+          "downWeightingByResidualStart",
+          &SolverOptions::downWeightingByResidualStart)
+      .def_readwrite(
+          "downWeightingByResidualEnd",
+          &SolverOptions::downWeightingByResidualEnd)
+      .def_readwrite(
+          "usePickUncertainties", &SolverOptions::usePickUncertainties)
+      .def_readwrite("xcorrWeightScaler", &SolverOptions::xcorrWeightScaler);
+}
+
+void InitXCorrCache(py::module_ &m) {
+  using namespace HDD;
+  py::class_<XCorrCache>(m, "XCorrCache")
+      .def(py::init<>())
+      .def("empty", &XCorrCache::empty)
+      .def("writeToFile", &XCorrCache::writeToFile)
+      .def_static("readFromFile", &XCorrCache::readFromFile);
+}
+
+void InitNeighbours(py::module_ &m) {
+  using namespace HDD;
+  py::class_<Neighbours>(m, "Neighbours")
+      .def(py::init<unsigned>())
+      .def("referenceId", &Neighbours::referenceId)
+      .def("setReferenceId", &Neighbours::setReferenceId)
+      .def("amount", &Neighbours::amount)
+      .def("ids", &Neighbours::ids)
+      .def("stations", &Neighbours::stations)
+      .def(
+          "toCatalog", &Neighbours::toCatalog, py::arg("catalog"),
+          py::arg("includeRefEv") = false)
+      // These operate on one cluster (one entry of the list returned by
+      // `DD.findClusters`), letting clusters be persisted to disk and
+      // reloaded later to avoid recomputing them.
+      .def_static(
+          "writeToFile",
+          py::overload_cast<
+              std::unordered_map<unsigned, Neighbours> const &,
+              Catalog const &, std::string const &>(&Neighbours::writeToFile))
+      .def_static("readFromFile", &Neighbours::readFromFile);
 }
 
 void InitDd(py::module_ &m) {
@@ -146,15 +155,42 @@ void InitDd(py::module_ &m) {
   using namespace HDD;
 
   py::class_<DD>(m, "DD")
-      .def(py::init<
-           Catalog const &, Config const &, std::shared_ptr<TravelTimeTable>,
-           std::shared_ptr<Waveform::Proxy>>())
+      // `HDD::DD` takes exclusive ownership (`unique_ptr`) of the
+      // travel-time-table and waveform-proxy, matching how `ttt`/`wf` are
+      // bound (unique_ptr-holder types): passing a Python object here moves
+      // the underlying C++ instance into `DD` and leaves the Python object
+      // empty, exactly like `std::move`-ing it away in C++ would.
       .def(
-          "relocateMultiEvents",
-          py::overload_cast<ClusteringOptions const &, SolverOptions const &>(
-              &DD::relocateMultiEvents));
+          py::init<
+              Catalog const &, Config const &,
+              std::unique_ptr<TravelTimeTable>, std::unique_ptr<Waveform::Proxy>>(),
+          py::arg("catalog"), py::arg("cfg"), py::arg("ttt"), py::arg("wf"))
+      .def("getCatalog", &DD::getCatalog)
+      .def(
+          "enableCatalogWaveformDiskCache",
+          &DD::enableCatalogWaveformDiskCache, py::arg("cacheDir"),
+          py::arg("diskTraceMinLen") = 10.)
+      .def(
+          "disableCatalogWaveformDiskCache",
+          &DD::disableCatalogWaveformDiskCache)
+      .def("unloadWaveforms", &DD::unloadWaveforms)
+      .def("findClusters", &DD::findClusters)
+      .def(
+          "relocateMultiEvents", &DD::relocateMultiEvents, py::arg("clusters"),
+          py::arg("xcorrData"), py::arg("clustOpt"), py::arg("xcorrOpt"),
+          py::arg("solverOpt"), py::arg("saveProcessing") = false,
+          py::arg("processingDataDir") = "")
+      .def(
+          "relocateSingleEvent", &DD::relocateSingleEvent,
+          py::arg("singleEvent"), py::arg("isManual"), py::arg("clustOpt"),
+          py::arg("xcorrOpt"), py::arg("solverOpt"),
+          py::arg("saveProcessing") = false,
+          py::arg("processingDataDir") = "");
 
   InitClusteringOptions(m);
+  InitXcorrOptions(m);
   InitSolverOptions(m);
   InitConfig(m);
+  InitXCorrCache(m);
+  InitNeighbours(m);
 }

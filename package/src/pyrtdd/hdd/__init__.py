@@ -1,12 +1,16 @@
 from .hdd_ext import (
     Config,
     Catalog,
-    NLL,
-    ConstantVelocity,
+    NLLGrid,
+    Homogeneous,
     UTCClock,
     ObspyWaveformProxy,
     DD,
     SolverOptions,
     ClusteringOptions,
+    XcorrOptions,
+    XCorrCache,
+    Neighbours,
     NoWaveformProxy,
+    Logger,
 )

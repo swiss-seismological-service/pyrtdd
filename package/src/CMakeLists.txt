@@ -14,7 +14,7 @@ EXECUTE_PROCESS (
 LIST (APPEND CMAKE_PREFIX_PATH "${_tmp_dir}")
 FIND_PACKAGE (pybind11 CONFIG REQUIRED)
 
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/../../deps/scrtdd/scrtdd/libs/hdd)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/../../deps/scrtdd/libs/hdd)
 
 
 SET (HDD_EXT_DIR pyrtdd/hdd)
@@ -25,9 +25,10 @@ SET (
   ${HDD_EXT_DIR}/dd_ext.cpp
   ${HDD_EXT_DIR}/catalog_ext.cpp
   ${HDD_EXT_DIR}/ttt_ext.cpp
-  ${HDD_EXT_DIR}/cvttt_ext.cpp
-  ${HDD_EXT_DIR}/nllttt_ext.cpp
+  ${HDD_EXT_DIR}/homogeneous_ext.cpp
+  ${HDD_EXT_DIR}/nllgrid_ext.cpp
   ${HDD_EXT_DIR}/utc_clock_ext.cpp
+  ${HDD_EXT_DIR}/log_ext.cpp
 )
 
 PYBIND11_ADD_MODULE (hdd_ext MODULE ${SOURCES})

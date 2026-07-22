@@ -33,8 +33,6 @@ void InitEvent(auto &catalog) {
 
   using Event = HDD::Catalog::Event;
   using RelocInfo_t = decltype(Event::relocInfo);
-  using Phases_t = decltype(RelocInfo_t::phases);
-  using Dd_t = decltype(RelocInfo_t::dd);
 
   auto event = py::class_<Event>(catalog, "Event")
                    .def(py::init<>())
@@ -51,43 +49,12 @@ void InitEvent(auto &catalog) {
                    .def_readwrite("magnitude", &Event::magnitude)
                    .def_readwrite("relocInfo", &Event::relocInfo);
 
-  py::class_<Phases_t>(event, "PHASES_TYPE")
-      .def(py::init<>())
-      .def(py::init<unsigned, unsigned, double, double, double>())
-      .def_readwrite("usedP", &Phases_t::usedP)
-      .def_readwrite("usedS", &Phases_t::usedS)
-      .def_readwrite("stationDistMedian", &Phases_t::stationDistMedian)
-      .def_readwrite("stationDistMin", &Phases_t::stationDistMin)
-      .def_readwrite("stationDistMax", &Phases_t::stationDistMax);
-
-  py::class_<Dd_t>(event, "DD_TYPE")
-      .def(py::init<>())
-      .def(py::init<
-           unsigned, unsigned, unsigned, unsigned, double, double, double,
-           double>())
-      .def_readwrite("numTTp", &Dd_t::numTTp)
-      .def_readwrite("numTTs", &Dd_t::numTTs)
-      .def_readwrite("numCCp", &Dd_t::numCCp)
-      .def_readwrite("numCCs", &Dd_t::numCCs)
-      .def_readwrite("startResidualMedian", &Dd_t::startResidualMedian)
-      .def_readwrite("startResidualMAD", &Dd_t::startResidualMAD)
-      .def_readwrite("finalResidualMedian", &Dd_t::finalResidualMedian)
-      .def_readwrite("finalResidualMAD", &Dd_t::finalResidualMAD);
-
   py::class_<RelocInfo_t>(event, "RELOC_INFO_TYPE")
       .def(py::init<>())
-      .def(py::init<
-           bool, double, double, double, double, double, unsigned, Phases_t,
-           Dd_t>())
+      .def(py::init<bool, double, double>())
       .def_readwrite("isRelocated", &RelocInfo_t::isRelocated)
       .def_readwrite("startRms", &RelocInfo_t::startRms)
-      .def_readwrite("finalRms", &RelocInfo_t::finalRms)
-      .def_readwrite("locChange", &RelocInfo_t::locChange)
-      .def_readwrite("depthChange", &RelocInfo_t::depthChange)
-      .def_readwrite("timeChange", &RelocInfo_t::timeChange)
-      .def_readwrite("numNeighbours", &RelocInfo_t::numNeighbours)
-      .def_readwrite("phases", &RelocInfo_t::phases)
-      .def_readwrite("dd", &RelocInfo_t::dd);
+      .def_readwrite("finalRms", &RelocInfo_t::finalRms);
 }
 
 void InitPhase(auto &catalog) {
@@ -111,26 +78,33 @@ void InitPhase(auto &catalog) {
                    .def_readwrite("stationCode", &Phase::stationCode)
                    .def_readwrite("locationCode", &Phase::locationCode)
                    .def_readwrite("channelCode", &Phase::channelCode)
-                   .def_readwrite("isManual", &Phase::isManual)
                    .def_readwrite("procInfo", &Phase::procInfo)
                    .def_readwrite("relocInfo", &Phase::relocInfo);
 
   py::enum_<Phase::Type>(phase, "Type")
       .value("P", Phase::Type::P)
-      .value("S", Phase::Type::S);
+      .value("S", Phase::Type::S)
+      .value("NO", Phase::Type::NO);
 
   py::enum_<Phase::Source>(phase, "Source")
       .value("CATALOG", Phase::Source::CATALOG)
-      .value("RT_EVENT", Phase::Source::RT_EVENT)
-      .value("THEORETICAL", Phase::Source::THEORETICAL)
-      .value("XCORR", Phase::Source::XCORR);
+      .value("RT_EVENT_MANUAL", Phase::Source::RT_EVENT_MANUAL)
+      .value("RT_EVENT_AUTOMATIC", Phase::Source::RT_EVENT_AUTOMATIC);
 
   py::class_<ProcInfo_t>(phase, "PROC_INFO_TYPE")
       .def(py::init<>())
       .def(py::init<Phase::Type, double, Phase::Source>())
       .def_readwrite("type", &ProcInfo_t::type)
-      .def_readwrite("weight", &ProcInfo_t::weight)
+      .def_readwrite("classWeight", &ProcInfo_t::classWeight)
       .def_readwrite("source", &ProcInfo_t::source);
+
+  py::class_<RelocInfo_t>(phase, "RELOC_INFO_TYPE")
+      .def(py::init<>())
+      .def(py::init<bool, double, double, double>())
+      .def_readwrite("isRelocated", &RelocInfo_t::isRelocated)
+      .def_readwrite("weight", &RelocInfo_t::weight)
+      .def_readwrite("startResidual", &RelocInfo_t::startResidual)
+      .def_readwrite("finalResidual", &RelocInfo_t::finalResidual);
 }
 
 void InitCatalog(py::module_ &m) {
@@ -141,9 +115,13 @@ void InitCatalog(py::module_ &m) {
 
   auto catalog = py::class_<HDD::Catalog>(m, "Catalog")
                      .def(py::init<>())
-                     .def(py::init<
-                          std::string const &, std::string const &,
-                          std::string const &, bool>())
+                     .def(
+                         py::init<
+                             std::string const &, std::string const &,
+                             std::string const &, bool>(),
+                         py::arg("stationFile"), py::arg("eventFile"),
+                         py::arg("phaseFile"),
+                         py::arg("loadRelocationInfo") = false)
                      .def("getStations", &HDD::Catalog::getStations)
                      .def("getEvents", &HDD::Catalog::getEvents)
                      .def("getPhases", [](HDD::Catalog const &c) {
@@ -154,7 +132,10 @@ void InitCatalog(py::module_ &m) {
                        }
                        return r;
                      })
-                     .def("writeToFile", &HDD::Catalog::writeToFile);
+                     .def("writeToFile", &HDD::Catalog::writeToFile)
+                     .def(
+                         "extractEvent", &HDD::Catalog::extractEvent,
+                         py::arg("eventId"), py::arg("keepEvId"));
 
   InitStation(catalog);
   InitEvent(catalog);

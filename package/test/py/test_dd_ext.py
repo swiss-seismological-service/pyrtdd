@@ -6,12 +6,14 @@ import obspy
 from pyrtdd.hdd import (
     Catalog,
     Config,
-    ConstantVelocity,
+    Homogeneous,
     ObspyWaveformProxy,
     UTCClock,
     DD,
     SolverOptions,
     ClusteringOptions,
+    XcorrOptions,
+    XCorrCache,
     NoWaveformProxy,
 )
 
@@ -33,37 +35,40 @@ def test_config_defaults():
 
     assert c.validPphases == ["Pg", "P", "Px"]
     assert c.validSphases == ["Sg", "S", "Sx"]
-    assert c.compatibleChannels == []
-    assert c.diskTraceMinLen == 10
+    assert c.pickUncertaintyClasses == [0.000, 0.025, 0.050, 0.100, 0.200, 0.400]
+    assert c.PSTableOnly
 
-    xc_p = c.XCorr(0.5, -0.5, 0.5, 0.5, ["Z"])
-    xc_s = c.XCorr(0.5, -0.5, 0.75, 0.5, ["H"])
-    assert c.xcorr == {PhaseType.P: xc_p, PhaseType.S: xc_s}
-
-    assert c.snr == c.SNR_TYPE(2, -3.0, -0.35, -0.35, 1)
-    assert c.wfFilter == c.WF_FILTER_TYPE("ITAPER(1)>>BW_HLP(2,1,20)", 0, 1)
+    assert c.wfFilter == c.WF_FILTER_TYPE("", 0, 1)
 
 
 def test_config_mutations():
 
     c = Config()
     c.validPphases = ["X", "y"]
-    c.xcorr[PhaseType.S].components = ["my_fav_component"]
     c.wfFilter.filterStr = "my_fav_filter_string"
 
     assert c.validPphases == ["X", "y"]
-    assert c.xcorr == {
-        PhaseType.P: c.XCorr(0.5, -0.5, 0.5, 0.5, ["Z"]),
-        PhaseType.S: c.XCorr(0.5, -0.5, 0.75, 0.5, ["my_fav_component"]),
-    }
     assert c.wfFilter == c.WF_FILTER_TYPE("my_fav_filter_string", 0, 1)
-    assert c.snr == c.SNR_TYPE(2, -3.0, -0.35, -0.35, 1)
 
 
-def test_cv_ttt():
+def test_xcorr_options_defaults():
+
+    xc = XcorrOptions()
+
+    assert not xc.enable
+
+    xc_p = xc.XCorr(0.70, -0.50, 0.50, 0.02, 0.50, ["Z"])
+    xc_s = xc.XCorr(0.70, -0.50, 1.00, 0.04, 0.50, ["L2"])
+    assert xc.phase == {PhaseType.P: xc_p, PhaseType.S: xc_s}
+
+    xc.phase[PhaseType.S].components = ["my_fav_component"]
+    assert xc.phase[PhaseType.S].components == ["my_fav_component"]
+
+
+def test_homogeneous_ttt():
 
     # This is just a smoke test as there are no public methods
-    cv_ttt = ConstantVelocity(2.0, 1.0)
+    ttt = Homogeneous(2.0, 1.0)
 
 
 def test_station():
@@ -96,35 +101,6 @@ def test_utc_time():
     ) == datetime.timedelta(3652, 0, 0, 0, 0, 1)
 
 
-def test_event_phases():
-
-    phases = Event.PHASES_TYPE(0, 0, +1.0, +0.5, +2.0)
-    assert phases.usedP == 0
-    assert phases.usedS == 0
-    assert phases.stationDistMedian == 1.0
-    assert phases.stationDistMin == 0.5
-    assert phases.stationDistMax == 2.0
-
-    phases.stationDistMin = 1.0
-    assert phases.stationDistMin == 1.0
-
-
-def test_event_dd():
-
-    dd = Event.DD_TYPE(0, 1, 2, 3, 0.0, 1.0, 2.0, 3.0)
-    assert dd.numTTp == 0
-    assert dd.numTTs == 1
-    assert dd.numCCp == 2
-    assert dd.numCCs == 3
-    assert dd.startResidualMedian == 0.0
-    assert dd.startResidualMAD == 1.0
-    assert dd.finalResidualMedian == 2.0
-    assert dd.finalResidualMAD == 3.0
-
-    dd.numCCp = 0
-    assert dd.numCCp == 0
-
-
 def test_reloc_info_default():
 
     reloc_info = Event.RELOC_INFO_TYPE()
@@ -133,51 +109,14 @@ def test_reloc_info_default():
 
 def test_reloc_info():
 
-    reloc_info = Event.RELOC_INFO_TYPE(
-        True,
-        0.0,
-        1.0,
-        2.0,
-        3.0,
-        4.0,
-        100,
-        Event.PHASES_TYPE(0, 0, 1.0, 0.5, 2.0),
-        Event.DD_TYPE(0, 1, 2, 3, 0.0, 1.0, 2.0, 3.0),
-    )
-
-    reloc_info_1 = Event.RELOC_INFO_TYPE(
-        True,
-        0.0,
-        1.0,
-        2.0,
-        3.0,
-        4.0,
-        100,
-        Event.PHASES_TYPE(1, 1, 2.0, 0.75, 3.0),
-        Event.DD_TYPE(3, 2, 1, 0, 3.0, 2.0, 1.0, 0.0),
-    )
-
-    assert reloc_info_1.phases.stationDistMedian == 2.0
-    assert reloc_info_1.dd.finalResidualMAD == 0.0
+    reloc_info = Event.RELOC_INFO_TYPE(True, 0.0, 1.0)
 
     assert reloc_info.isRelocated
     assert reloc_info.startRms == 0.0
     assert reloc_info.finalRms == 1.0
-    assert reloc_info.locChange == 2.0
-    assert reloc_info.depthChange == 3.0
-    assert reloc_info.timeChange == 4.0
-    assert reloc_info.numNeighbours == 100
-    assert reloc_info.phases.stationDistMedian == 1.0
-    assert reloc_info.dd.finalResidualMAD == 3.0
 
-    reloc_info.phases.stationDistMedian = 3.0
-    reloc_info.dd.finalResidualMAD = 4.0
-
-    assert reloc_info.phases.stationDistMedian == 3.0
-    assert reloc_info.dd.finalResidualMAD == 4.0
-
-    assert reloc_info_1.phases.stationDistMedian == 2.0
-    assert reloc_info_1.dd.finalResidualMAD == 0.0
+    reloc_info.finalRms = 2.0
+    assert reloc_info.finalRms == 2.0
 
 
 def test_event():
@@ -189,17 +128,7 @@ def test_event():
         90.0,
         10.0,
         5.5,
-        Event.RELOC_INFO_TYPE(
-            True,
-            0.0,
-            1.0,
-            2.0,
-            3.0,
-            4.0,
-            100,
-            Event.PHASES_TYPE(0, 0, 1.0, 0.5, 2.0),
-            Event.DD_TYPE(0, 1, 2, 3, 0.0, 1.0, 2.0, 3.0),
-        ),
+        Event.RELOC_INFO_TYPE(True, 0.0, 1.0),
     )
 
     assert e.id == 0
@@ -209,9 +138,9 @@ def test_event():
     assert e.depth == 10.0
     assert e.magnitude == 5.5
 
-    assert e.relocInfo.dd.numCCs == 3
-    e.relocInfo.dd.numCCs = 2
-    assert e.relocInfo.dd.numCCs == 2
+    assert e.relocInfo.finalRms == 1.0
+    e.relocInfo.finalRms = 2.0
+    assert e.relocInfo.finalRms == 2.0
 
 
 def test_catalog():
@@ -241,7 +170,6 @@ def test_catalog():
     assert ph_test.upperUncertainty == 0.0
     assert ph_test.networkCode == "NET"
     assert ph_test.stationCode == "ST02"
-    assert ph_test.isManual
 
 
 def test_obspy_waveform_proxy():
@@ -272,17 +200,15 @@ def test_dd():
 
     con = Config()
     cat = Catalog(station_file, event_file, phase_file, False)
-    ttt = ConstantVelocity(5.8, 3.36)
-    # prx = ObspyWaveformProxy(obspy.Stream([]))
+    ttt = Homogeneous(5.8, 3.36)
 
     dd = DD(cat, con, ttt, NoWaveformProxy())
 
     cluster_cfg = ClusteringOptions()
     cluster_cfg.numEllipsoids = 0
-    cluster_cfg.maxEllipsoidSize = 15
-    cluster_cfg.xcorrMaxEvStaDist = 0
-    cluster_cfg.xcorrMaxInterEvDist = 0
-    cluster_cfg.xcorrDetectMissingPhases = False
+    cluster_cfg.maxNeighbourDist = 15
+
+    xcorr_cfg = XcorrOptions()  # cross-correlation disabled (enable=False)
 
     solver_cfg = SolverOptions()
     solver_cfg.algoIterations = 20
@@ -292,9 +218,11 @@ def test_dd():
     solver_cfg.dampingFactorEnd = 0.01
     solver_cfg.downWeightingByResidualStart = 0
     solver_cfg.downWeightingByResidualEnd = 0
-    solver_cfg.airQuakes.action = SolverOptions.AQ_ACTION.RESET_DEPTH
 
-    cat_new = dd.relocateMultiEvents(cluster_cfg, solver_cfg)
+    clusters = dd.findClusters(cluster_cfg)
+    cat_new = dd.relocateMultiEvents(
+        clusters, XCorrCache(), cluster_cfg, xcorr_cfg, solver_cfg
+    )
 
     event_file_true = str(DATA_DIR / "relocated-event.csv")
     phase_file_true = str(DATA_DIR / "relocated-phase.csv")
