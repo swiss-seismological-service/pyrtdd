@@ -165,6 +165,17 @@ void InitDd(py::module_ &m) {
               Catalog const &, Config const &,
               std::unique_ptr<TravelTimeTable>, std::unique_ptr<Waveform::Proxy>>(),
           py::arg("catalog"), py::arg("cfg"), py::arg("ttt"), py::arg("wf"))
+      // `wf`-less overload: cross-correlation isn't possible without
+      // waveform data anyway, so this just saves having to spell out
+      // `NoWaveformProxy()` at every call site that doesn't need it.
+      .def(
+          py::init([](Catalog const &catalog, Config const &cfg,
+                      std::unique_ptr<TravelTimeTable> ttt) {
+            return new DD(
+                catalog, cfg, std::move(ttt),
+                std::make_unique<Waveform::NoWaveformProxy>());
+          }),
+          py::arg("catalog"), py::arg("cfg"), py::arg("ttt"))
       .def("getCatalog", &DD::getCatalog)
       .def(
           "enableCatalogWaveformDiskCache",
@@ -175,11 +186,47 @@ void InitDd(py::module_ &m) {
           &DD::disableCatalogWaveformDiskCache)
       .def("unloadWaveforms", &DD::unloadWaveforms)
       .def("findClusters", &DD::findClusters)
+      // `clustOpt` is dropped here: `DD::relocateMultiEvents` only consults it
+      // to auto-compute `clusters` when the list passed in is empty, and
+      // every documented workflow always calls `findClusters(clustOpt)`
+      // first and passes its non-empty result in, at which point `clustOpt`
+      // is never touched again. A default-constructed `ClusteringOptions()`
+      // is passed through internally so that (rarely used, undocumented)
+      // empty-`clusters` auto-clustering still works, just with default
+      // options -- callers who want custom options for that should call
+      // `findClusters` themselves instead, same as everywhere else.
       .def(
-          "relocateMultiEvents", &DD::relocateMultiEvents, py::arg("clusters"),
-          py::arg("xcorrData"), py::arg("clustOpt"), py::arg("xcorrOpt"),
+          "relocateMultiEvents",
+          [](DD &dd,
+             std::list<std::unordered_map<unsigned, Neighbours>> &clusters,
+             XCorrCache &xcorrData, XcorrOptions const &xcorrOpt,
+             SolverOptions const &solverOpt, bool saveProcessing,
+             std::string const &processingDataDir) {
+            return dd.relocateMultiEvents(
+                clusters, xcorrData, ClusteringOptions(), xcorrOpt, solverOpt,
+                saveProcessing, processingDataDir);
+          },
+          py::arg("clusters"), py::arg("xcorrData"), py::arg("xcorrOpt"),
           py::arg("solverOpt"), py::arg("saveProcessing") = false,
           py::arg("processingDataDir") = "")
+      // xcorr-less overload: builds a disabled XcorrOptions and a throwaway
+      // XCorrCache internally, for callers that don't want cross-correlation
+      // and so have no cache to pass in or read back.
+      .def(
+          "relocateMultiEvents",
+          [](DD &dd,
+             std::list<std::unordered_map<unsigned, Neighbours>> &clusters,
+             SolverOptions const &solverOpt, bool saveProcessing,
+             std::string const &processingDataDir) {
+            XCorrCache discardedXcorrData;
+            XcorrOptions xcorrOpt;
+            xcorrOpt.enable = false;
+            return dd.relocateMultiEvents(
+                clusters, discardedXcorrData, ClusteringOptions(), xcorrOpt,
+                solverOpt, saveProcessing, processingDataDir);
+          },
+          py::arg("clusters"), py::arg("solverOpt"),
+          py::arg("saveProcessing") = false, py::arg("processingDataDir") = "")
       .def(
           "relocateSingleEvent", &DD::relocateSingleEvent,
           py::arg("singleEvent"), py::arg("isManual"), py::arg("clustOpt"),

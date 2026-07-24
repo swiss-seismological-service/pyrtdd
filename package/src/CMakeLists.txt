@@ -20,7 +20,6 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/../../deps/scrtdd/libs/hdd)
 SET (HDD_EXT_DIR pyrtdd/hdd)
 SET (
   SOURCES
-  ${HDD_EXT_DIR}/ObspyWaveformProxy.cpp
   ${HDD_EXT_DIR}/hdd_ext.cpp
   ${HDD_EXT_DIR}/dd_ext.cpp
   ${HDD_EXT_DIR}/catalog_ext.cpp
@@ -28,6 +27,8 @@ SET (
   ${HDD_EXT_DIR}/homogeneous_ext.cpp
   ${HDD_EXT_DIR}/nllgrid_ext.cpp
   ${HDD_EXT_DIR}/utc_clock_ext.cpp
+  ${HDD_EXT_DIR}/trace_ext.cpp
+  ${HDD_EXT_DIR}/proxy_ext.cpp
   ${HDD_EXT_DIR}/log_ext.cpp
 )
 

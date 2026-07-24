@@ -20,11 +20,14 @@ setup(
     url="https://github.com/swiss-seismological-service/pyrtdd",
     description="Double-difference earthquake relocation",
     long_description="Python wrapper for the C++ double-difference relocation library from scrtdd",
-    packages=["pyrtdd", "pyrtdd.hdd"],
+    packages=["pyrtdd", "pyrtdd.hdd", "pyrtdd.obspy"],
     package_dir={"": "package/src"},
     cmake_install_dir="package/src/pyrtdd",
     include_package_data=True,
-    extras_require={"test": ["pytest"]},
-    install_requires=["numpy>=1.23.3", "obspy>=1.3.0"],
+    extras_require={
+        "obspy": ["obspy>=1.3.0"],
+        "test": ["pytest", "obspy>=1.3.0"],
+    },
+    install_requires=["numpy>=1.23.3"],
     python_requires=">=3.8",
 )

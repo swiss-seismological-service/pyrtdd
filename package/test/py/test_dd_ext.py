@@ -2,12 +2,10 @@ import datetime
 import pathlib
 
 import numpy as np
-import obspy
 from pyrtdd.hdd import (
     Catalog,
     Config,
     Homogeneous,
-    ObspyWaveformProxy,
     UTCClock,
     DD,
     SolverOptions,
@@ -15,6 +13,9 @@ from pyrtdd.hdd import (
     XcorrOptions,
     XCorrCache,
     NoWaveformProxy,
+    WaveformProxy,
+    Trace,
+    ThreeComponents,
 )
 
 DATA_DIR = pathlib.Path(__file__).parent / "data"
@@ -172,30 +173,6 @@ def test_catalog():
     assert ph_test.stationCode == "ST02"
 
 
-def test_obspy_waveform_proxy():
-
-    tr0 = obspy.Trace(
-        np.linspace(0, 1, 101),
-        {"network": "XX", "station": "YY", "channel": "Z", "location": "0"},
-    )
-
-    tr1 = obspy.Trace(
-        np.linspace(1, 2, 101),
-        {"network": "XX", "station": "YY", "channel": "Y", "location": "1"},
-    )
-
-    p = ObspyWaveformProxy(obspy.Stream([tr0, tr1]))
-
-    assert p._getTraceAddr("XX", "YY", "0", "Z") == hex(tr0.data.ctypes.data)
-    assert p._getTraceAddr("XX", "YY", "1", "Y") == hex(tr1.data.ctypes.data)
-    np.testing.assert_allclose(
-        p.getTraceData("XX", "YY", "0", "Z"), np.linspace(0, 1, 101)
-    )
-    np.testing.assert_allclose(
-        p.getTraceData("XX", "YY", "1", "Y"), np.linspace(1, 2, 101)
-    )
-
-
 def test_dd():
 
     con = Config()
@@ -221,7 +198,7 @@ def test_dd():
 
     clusters = dd.findClusters(cluster_cfg)
     cat_new = dd.relocateMultiEvents(
-        clusters, XCorrCache(), cluster_cfg, xcorr_cfg, solver_cfg
+        clusters, XCorrCache(), xcorr_cfg, solver_cfg
     )
 
     event_file_true = str(DATA_DIR / "relocated-event.csv")
@@ -240,3 +217,211 @@ def test_dd():
         np.testing.assert_allclose(en.depth, eo.depth, rtol=1e-5)
         np.testing.assert_allclose(en.magnitude, eo.magnitude, rtol=1e-5)
         # assert vn == vo
+
+
+def test_dd_and_relocate_multi_events_without_xcorr_overloads():
+    # `DD(catalog, cfg, ttt)` and `relocateMultiEvents(clusters, solverOpt)`
+    # are convenience overloads for the no-cross-correlation case (they build
+    # a NoWaveformProxy / disabled XcorrOptions internally), so they should
+    # behave identically to test_dd()'s explicit equivalents.
+
+    con = Config()
+    cat = Catalog(station_file, event_file, phase_file, False)
+    ttt = Homogeneous(5.8, 3.36)
+
+    dd = DD(cat, con, ttt)
+
+    cluster_cfg = ClusteringOptions()
+    cluster_cfg.numEllipsoids = 0
+    cluster_cfg.maxNeighbourDist = 15
+
+    solver_cfg = SolverOptions()
+    solver_cfg.algoIterations = 20
+    solver_cfg.absLocConstraintStart = 0.3
+    solver_cfg.absLocConstraintEnd = 0.3
+    solver_cfg.dampingFactorStart = 0.01
+    solver_cfg.dampingFactorEnd = 0.01
+    solver_cfg.downWeightingByResidualStart = 0
+    solver_cfg.downWeightingByResidualEnd = 0
+
+    clusters = dd.findClusters(cluster_cfg)
+    cat_new = dd.relocateMultiEvents(clusters, solver_cfg)
+
+    cat_true = Catalog(
+        str(DATA_DIR / "relocated-station.csv"),
+        str(DATA_DIR / "relocated-event.csv"),
+        str(DATA_DIR / "relocated-phase.csv"),
+        False,
+    )
+
+    for en, eo in zip(
+        cat_new.getEvents().values(), cat_true.getEvents().values()
+    ):
+        np.testing.assert_allclose(en.latitude, eo.latitude, rtol=1e-5)
+        np.testing.assert_allclose(en.longitude, eo.longitude, rtol=1e-5)
+        np.testing.assert_allclose(en.depth, eo.depth, rtol=1e-5)
+        np.testing.assert_allclose(en.magnitude, eo.magnitude, rtol=1e-5)
+
+
+def test_proxy_subclass_dispatch_survives_ownership_transfer():
+    # `WaveformProxy` is designed to be subclassed directly in Python (this is
+    # how obspy-backed waveform sources plug in). `DD`'s constructor takes
+    # ownership of the proxy via a C++ unique_ptr, so this checks that a
+    # Python override still gets called correctly by C++ code after that
+    # ownership transfer, using a real xcorr-enabled relocation to force it.
+    class RecordingProxy(WaveformProxy):
+        def __init__(self):
+            super().__init__()
+            self.load_calls = 0
+            self.components_calls = 0
+
+        def loadTrace(self, tw, net, sta, loc, cha):
+            self.load_calls += 1
+            raise RuntimeError("no waveform data in this test")
+
+        def loadTraces(self, request, onTraceLoaded, onTraceFailed):
+            for stream_id, tw in request:
+                self.load_calls += 1
+                onTraceFailed(stream_id, tw, "no waveform data in this test")
+
+        def getComponentsInfo(self, ph):
+            self.components_calls += 1
+            raise RuntimeError("no inventory in this test")
+
+        def filter(self, trace, filterStr):
+            raise NotImplementedError
+
+        def writeTrace(self, trace, file):
+            raise NotImplementedError
+
+        def readTrace(self, file):
+            raise NotImplementedError
+
+    con = Config()
+    cat = Catalog(station_file, event_file, phase_file, False)
+    ttt = Homogeneous(5.8, 3.36)
+    proxy = RecordingProxy()
+
+    dd = DD(cat, con, ttt, proxy)  # ownership of `proxy` moves into C++ here
+
+    cluster_cfg = ClusteringOptions()
+    cluster_cfg.numEllipsoids = 0
+    cluster_cfg.maxNeighbourDist = 15
+
+    xcorr_cfg = XcorrOptions()
+    xcorr_cfg.enable = True
+
+    solver_cfg = SolverOptions()
+    solver_cfg.algoIterations = 2
+
+    clusters = dd.findClusters(cluster_cfg)
+    # Every xcorr attempt fails (no real waveform data), but the relocation
+    # itself should still complete by falling back to catalog travel times.
+    dd.relocateMultiEvents(clusters, XCorrCache(), xcorr_cfg, solver_cfg)
+
+    assert proxy.load_calls > 0
+    assert proxy.components_calls > 0
+
+
+def test_proxy_returned_trace_survives_ownership_transfer():
+    # Regression test: unlike the RecordingProxy above (whose loadTrace/
+    # loadTraces always raise), this WaveformProxy's loadTrace/loadTraces
+    # actually construct and return a real `Trace`. Binding `Trace` with the
+    # default (non smart_holder) pybind11 holder used to make libhdd's C++
+    # side unable to accept that returned object as a `unique_ptr<Trace>`,
+    # raising "Passing std::unique_ptr<T> from Python to C++ requires
+    # py::class_<T, py::smart_holder>" as soon as any waveform was actually
+    # loaded (as opposed to failing to load).
+    class SyntheticProxy(WaveformProxy):
+        def __init__(self):
+            super().__init__()
+            self.load_calls = 0
+
+        def _synthesize(self, tw, net, sta, loc, cha):
+            self.load_calls += 1
+            n = 200
+            length = max((tw.endTime - tw.startTime).total_seconds(), 0.01)
+            data = np.sin(np.linspace(0, 20, n))
+            return Trace(net, sta, loc, cha, tw.startTime, n / length, data)
+
+        def loadTrace(self, tw, net, sta, loc, cha):
+            return self._synthesize(tw, net, sta, loc, cha)
+
+        def loadTraces(self, request, onTraceLoaded, onTraceFailed):
+            for streamId, tw in request:
+                net, sta, loc, cha = streamId.split(".")
+                onTraceLoaded(streamId, tw, self._synthesize(tw, net, sta, loc, cha))
+
+        def getComponentsInfo(self, ph):
+            root = ph.channelCode[:2]
+            tc = ThreeComponents()
+            tc.names = [root + "Z", root + "N", root + "E"]
+            tc.dip = [-90.0, 0.0, 0.0]
+            tc.azimuth = [0.0, 0.0, 90.0]
+            return tc
+
+        def filter(self, trace, filterStr):
+            pass
+
+        def writeTrace(self, trace, file):
+            raise NotImplementedError
+
+        def readTrace(self, file):
+            raise NotImplementedError
+
+    con = Config()
+    cat = Catalog(station_file, event_file, phase_file, False)
+    ttt = Homogeneous(5.8, 3.36)
+    proxy = SyntheticProxy()
+
+    dd = DD(cat, con, ttt, proxy)
+
+    cluster_cfg = ClusteringOptions()
+    cluster_cfg.numEllipsoids = 0
+    cluster_cfg.maxNeighbourDist = 15
+
+    xcorr_cfg = XcorrOptions()
+    xcorr_cfg.enable = True
+
+    solver_cfg = SolverOptions()
+    solver_cfg.algoIterations = 2
+
+    clusters = dd.findClusters(cluster_cfg)
+    xcorr_data = XCorrCache()
+    dd.relocateMultiEvents(clusters, xcorr_data, xcorr_cfg, solver_cfg)
+
+    assert proxy.load_calls > 0
+    # A non-empty cache proves the Trace objects returned from Python were
+    # actually accepted by libhdd and cross-correlated, not just constructed.
+    assert not xcorr_data.empty()
+
+
+def test_trace_roundtrip():
+    stime = UTCClock.fromString("2022-02-10T17:58:00.000Z")
+    data = np.linspace(0, 1, 11)
+
+    tr = Trace("NET", "STA", "LOC", "HHZ", stime, 10.0, data)
+
+    assert tr.networkCode == "NET"
+    assert tr.stationCode == "STA"
+    assert tr.locationCode == "LOC"
+    assert tr.channelCode == "HHZ"
+    assert tr.startTime == stime
+    assert tr.samplingFrequency == 10.0
+    assert tr.sampleCount == 11
+    np.testing.assert_allclose(tr.data(), data)
+
+    # the returned array is a zero-copy, mutable view onto the trace itself
+    tr.data()[0] = 99.0
+    np.testing.assert_allclose(tr.data()[0], 99.0)
+
+
+def test_three_components():
+    tc = ThreeComponents()
+    tc.names = ["HHZ", "HHN", "HHE"]
+    tc.dip = [-90.0, 0.0, 0.0]
+    tc.azimuth = [0.0, 0.0, 90.0]
+
+    assert tc.names == ["HHZ", "HHN", "HHE"]
+    assert tc.dip == [-90.0, 0.0, 0.0]
+    assert tc.azimuth == [0.0, 0.0, 90.0]
