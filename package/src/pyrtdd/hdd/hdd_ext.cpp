@@ -8,7 +8,8 @@ void InitTtt(py::module_ &);
 void InitHomogeneous(py::module_ &);
 void InitNLLGrid(py::module_ &);
 void InitUtcTime(py::module &);
-void InitObspyWaveformProxy(py::module_ &m);
+void InitTrace(py::module_ &m);
+void InitProxy(py::module_ &m);
 void InitDd(py::module_ &m);
 void InitLogger(py::module_ &m);
 
@@ -18,7 +19,8 @@ PYBIND11_MODULE(hdd_ext, m) {  // NOLINT
   InitHomogeneous(m);
   InitNLLGrid(m);
   InitUtcTime(m);
-  InitObspyWaveformProxy(m);
+  InitTrace(m);
+  InitProxy(m);
   InitDd(m);
   InitLogger(m);
 }

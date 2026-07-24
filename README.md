@@ -35,6 +35,12 @@ Python wrapper for the C++ double-difference relocation library from [scrtdd](ht
     pip install -v .
     ```
 
+    This installs the core package, which has no obspy dependency. If you want to use the obspy-backed waveform sources for cross-correlation (see below), install the `obspy` extra instead:
+
+    ```
+    pip install -v ".[obspy]"
+    ```
+
 From now on you can activate the pyrtdd environment with:
 
     ```
@@ -46,6 +52,8 @@ You can disable it with:
     ```
     deactivate
     ```
+
+If you want to run the test suite, install with the `test` and `obspy` extras and run pytest from the repo root: `pip install -v ".[test,obspy]"` then `pytest`.
 
 # Example workflow
 
@@ -60,10 +68,7 @@ from pyrtdd.hdd import (
         Homogeneous,
         DD,
         ClusteringOptions,
-        XcorrOptions,
         SolverOptions,
-        XCorrCache,
-        NoWaveformProxy,
     )
 
 # 1. Load the input catalog: stations, events, and phase picks.
@@ -77,10 +82,12 @@ cat = Catalog('./package/test/py/data/starting-station.csv',
 ttt = Homogeneous(5.8, 3.36)  # P/S velocity [km/s]
 
 # 3. Build the relocator.
-#    Ownership of `ttt`/`wf` transfers into `dd` here (matching the C++
-#    `unique_ptr` semantics), so neither can be reused afterwards.
+#    Ownership of `ttt` transfers into `dd` here (matching the C++
+#    `unique_ptr` semantics), so it can't be reused afterwards. No waveform
+#    proxy is passed, so this uses a `NoWaveformProxy()` internally and
+#    cross-correlation stays off (see below for how to enable it).
 cfg = Config() # see details later
-dd = DD(cat, cfg, ttt, NoWaveformProxy())
+dd = DD(cat, cfg, ttt)
 
 # 4. Group events into clusters, then relocate them.
 #    How multi-event relocation works: https://docs.gempa.de/scrtdd/current/base/multievent.html#relocation-process
@@ -89,7 +96,7 @@ clusters = dd.findClusters(cluster_cfg)
 
 solver_cfg = SolverOptions()  # see details later
 cat_new = dd.relocateMultiEvents(
-    clusters, XCorrCache(), cluster_cfg, XcorrOptions(), solver_cfg,
+    clusters, solver_cfg,
     saveProcessing=True, processingDataDir="")
 
 # 5. Save the relocated catalog.
@@ -101,7 +108,7 @@ cat_new.writeToFile('relocated-event.csv',
 
 ![reloc](https://user-images.githubusercontent.com/15273575/205635799-80128f78-be04-48dc-8c17-32887d929552.png)
 
-That's the whole shape of it, and it won't change. Everything below is just about *what you put into* the four config objects created above — `Config`, `ClusteringOptions`, `XcorrOptions`, and `SolverOptions` — before handing them to `DD`/`findClusters`/`relocateMultiEvents`.
+That's the whole shape of it (for the no-cross-correlation case), and it won't change. Everything below is just about *what you put into* the three config objects created above — `Config`, `ClusteringOptions`, and `SolverOptions` — before handing them to `DD`/`findClusters`/`relocateMultiEvents`.
 
 Both `relocateMultiEvents` and `relocateSingleEvent` also accept two extra keyword arguments for debugging: `saveProcessing=True` dumps intermediate per-cluster/per-iteration data (input catalog, event/phase CSVs, the cross-correlation cache) to `processingDataDir`, at the cost of extra disk I/O; if `processingDataDir` is left empty (the default), a directory name is auto-generated in the current working directory.
 
@@ -112,19 +119,24 @@ Both `relocateMultiEvents` and `relocateSingleEvent` also accept two extra keywo
 Controls which picks in the input catalog are actually used. Set these on `cfg` before step 3 in the workflow above (`DD` reads `Config` once, at construction time):
 
 ```python
-# Defines a priority list of accepted P and S phases. Phases not in the list will be discarded from the catalog.
-# If multiple phases exist for the same event at a station, the first one in the list will be used
+cfg = Config()
+
+# Defines a list of accepted P and S phases. Phases not in the list will be discarded from the catalog.
 cfg.validPphases = ['Pg', 'P']
 cfg.validSphases = ['Sg', 'S']
 
-# Defines pick time uncertainty thresholds (in seconds) used to classify
-# picks for weighting. This parameter defines a list of interval boundaries.
-# A pick's class is determined by the interval its uncertainty falls into.
-# E.g., a pick with an uncertainty of 0.150s falls into the 4th interval
-# (between 0.100 and 0.200) and is assigned class 4. If a pick's
-# uncertainty is absent, the lowest class is used.
-# The pick weight is computed as: 1 / 2^(class-1).
-# Used only if solver_cfg.usePickUncertainties=True
+# Used only if solver_cfg.usePickUncertainties=True.
+#
+# Sorts picks into weight classes by their time uncertainty (secs). This
+# list is the class boundaries: class N covers the interval between the
+# (N-1)th and Nth value, and its weight is 1 / 2^(N-1) -- so a higher class
+# (= higher uncertainty) means a lower weight.
+#   E.g. with the boundaries below, a pick with 0.150s uncertainty falls
+#   into class 4 (0.100-0.200s) and gets weight 1 / 2^3 = 0.125.
+#
+# A pick with no uncertainty value, or an uncertainty at/above the last
+# boundary (0.400s here), gets the worst (last) class -- i.e. the lowest
+# weight, not the highest.
 cfg.pickUncertaintyClasses = [0.000, 0.025, 0.050, 0.100, 0.200, 0.400]
 ```
 
@@ -151,28 +163,21 @@ cluster_cfg.minEvStaDist = 0.  # min hypocenter-station distance required
 cluster_cfg.maxEvStaDist = -1  # max hypocenter-station distance allowed (-1 -> disable)
 
 # Neighbours selection
-# This option controls how neighbouring events are selected. When 'numEllipsoids' is > 0 (the default),
-# the ellipsoid selection algorithm from Waldhauser 2009 is used: to assure a spatially homogeneous
-# subsampling, reference events are selected within each of `numEllipsoids` concentric ellipsoidal
-# layers of increasing thickness. Each layer is split up into its 8 quadrants (or cells), and the
-# neighboring events are selected from each ellipsoid/quadrant combination in a round robin fashion
-# until 'maxNumNeigh' is reached.
-# In the simplest form, 'numEllipsoids' is set to 0 and 'maxNumNeigh' neighbours are instead selected
-# on a plain nearest-neighbour basis within a search distance of 'maxNeighbourDist'.
+#
+# Controls how neighbouring events are chosen for a reference event.
+#
+# Simple mode (numEllipsoids = 0): plain nearest-neighbour -- picks the
+# closest events within 'maxNeighbourDist', up to 'maxNumNeigh' of them.
+#
+# Ellipsoid mode (numEllipsoids > 0, the default): Waldhauser (2009)'s
+# concentric-ellipsoids algorithm, for a more spatially even selection.
+# 'numEllipsoids' concentric ellipsoidal layers (increasing in thickness
+# outward) are built around the reference event, each split into its 8
+# quadrants, and neighbours are picked round-robin across every
+# ellipsoid/quadrant cell until 'maxNumNeigh' is reached.
 cluster_cfg.numEllipsoids = 0
 cluster_cfg.maxNeighbourDist = 5  # Km
 ```
-
-### Cross-correlation (`XcorrOptions`)
-
-There is no cross-correlation binding to python yet, so leave this disabled :(
-
-```python
-xcorr_cfg = XcorrOptions()
-xcorr_cfg.enable = False
-```
-
-Relatedly, `relocateMultiEvents`/`relocateSingleEvent` also take an `XCorrCache` argument — a cache of precomputed cross-correlation results for the phases being relocated. Since cross-correlation isn't implemented in pyrtdd, always pass an empty `XCorrCache()` there.
 
 ### Solver (`SolverOptions`)
 
@@ -194,7 +199,7 @@ solver_cfg.downWeightingByResidualEnd = 5.     # 0 -> disbale downweighting
 
 solver_cfg.usePickUncertainties = False  # if True then phase uncertaintis must
                                          #  be populated in cfg.pickUncertaintyClasses
-solver_cfg.xcorrWeightScaler = 2.0  # scales the weight given to cross-correlation-derived observations
+solver_cfg.xcorrWeightScaler = 2.0  # scales the weight given to cross-correlation-derived observations, see below
 ```
 
 ## Velocity model (`Homogeneous` / `NLLGrid`)
@@ -202,21 +207,35 @@ solver_cfg.xcorrWeightScaler = 2.0  # scales the weight given to cross-correlati
 There are two options available. `Homogeneous` (used in the workflow above) assumes constant P/S velocities. Alternatively, `NLLGrid` reads travel times from precomputed NonLinLoc grids:
 
 ```python
-ttt = NLLGrid('path/to/grid',   # directory containing the NonLinLoc grid files
-              'iasp91',         # grid model name
-              0.1,              # max search distance [km] used to match a station to a grid node
-              False,            # swap bytes
-              512,              # maximum number of grid files to keep open (performance)
-              'MemoryMapping')       # grid file access method
+ttt = NLLGrid(
+    gridPath='path/to/grid',    # directory containing the NonLinLoc grid files
+    gridModel='iasp91',         # grid model base name -- the common filename prefix
+                                 #  NonLinLoc gives its time/angle/mod files, e.g.
+                                 #  'iasp91.P.mod.hdr', 'iasp91.P.<station>.time.hdr', ...
+    maxSearchDistance=0.01,     # NonLinLoc computes one grid file per station. Each file's
+                                 #  header stores that station's location in grid-relative
+                                 #  coordinates; a queried station's lat/lon is then matched
+                                 #  to its grid by nearest projected location, not by
+                                 #  station name/code. This is the max distance [m] allowed
+                                 #  for that match -- beyond it, the lookup fails for that
+                                 #  station. Kept tiny by default, since it only needs to
+                                 #  absorb the projection's rounding error, not stand in for
+                                 #  a missing station's grid with a nearby one's
+    swapBytes=False,            # byte-swap grid file contents (set True on endianness
+                                 #  mismatch between the machine that wrote the grids and
+                                 #  the one reading them)
+    maxOpenFiles=512,           # max number of grid files kept open at once (performance)
+    accessMethod='KeepOpen',    # how grid files are read: 'KeepOpen' (the default) reads
+                                 #  values from disk on demand, keeping the file open in
+                                 #  between -- low memory use.
+                                 #  'LoadIntoMemory' loads every grid file into memory
+                                 #  upfront, trading a higher initial load time and memory
+                                 #  footprint for the fastest lookups afterwards.
+                                 # 'MemoryMapping' memory-maps the files instead; usually
+                                 # the fastest option, but depends on your system, so
+                                 # test it first
+)
 ```
-
-The method for accessing grid files can be 'KeepOpen', 'LoadIntoMemory' or 'MemoryMapping'
-'MemoryMapping' is the fastest method, but it is optional in case there are limits of
-memoery mapping on your system.
-'KeepOpen' opens the files and reads the required values on demand, while keeping the file open.
-'LoadIntoMemory' loads all files into memory. This requires an initial file loading overhead
-and higher memory usage. This is the fastest method for long running modules that
-can keep all the grid files in memory, so that they are loaded only once.
 
 Both `Homogeneous` and `NLLGrid` also work standalone, if you need travel times for your own
 purposes rather than for a relocation:
@@ -252,21 +271,112 @@ for i, cluster in enumerate(clusters):
 clusters = [Neighbours.readFromFile(cat, f"cluster_{i}.csv") for i in range(len(clusters))]
 
 cat_new = dd.relocateMultiEvents(
-    clusters, XCorrCache(), cluster_cfg, xcorr_cfg, solver_cfg)
+    clusters, solver_cfg,
+    saveProcessing=True, processingDataDir="")
 ```
 
-## Logging
+## Cross-correlation
 
-`pyrtdd` logs progress (like the cluster/relocation messages seen when running the workflow above) to `stderr`. It defaults to the `info` level. You can change it at any time, e.g. before or between relocation calls:
+Cross-correlation needs two things: a `pyrtdd.hdd.Proxy` to supply waveform data, passed to `DD` as its fourth (`wf`) argument, and an `XcorrOptions` configuring cross-correlation itself, passed to `relocateMultiEvents`/`relocateSingleEvent`. Putting both into the workflow above, this is the fuller form of its steps 3-4:
 
 ```python
-from pyrtdd.hdd import Logger
+from pyrtdd.hdd import XCorrCache
 
-Logger.setLevel(Logger.Level.debug)  # more verbose
-Logger.getLevel()                    # read back the current level
+dd = DD(cat, cfg, ttt, proxy)  # `proxy`: see "Waveform sources" below
+
+clusters = dd.findClusters(cluster_cfg)
+xcorr_data = XCorrCache()  # gets populated with the computed corr coefficients/lags
+xcorr_cfg = XcorrOptions() # see "Configuration" below
+cat_new = dd.relocateMultiEvents(
+    clusters, xcorr_data, xcorr_cfg, solver_cfg,
+    saveProcessing=True, processingDataDir="")
 ```
 
-Available levels, from most to least verbose: `Logger.Level.debug`, `Logger.Level.info` (the default), `Logger.Level.warning`, `Logger.Level.error`, `Logger.Level.none` (disables logging entirely).
+`proxy` and `xcorr_cfg` are covered in detail next.
+
+`xcorr_data` can be reused in a later call to skip recomputing cross-correlation pairs it already has entries for — including across separate runs, by saving it to disk once and reloading it later:
+
+```python
+# Save (`cat` must be the same background catalog the cache was computed against).
+xcorr_data.writeToFile(cat, "xcorr_cache.csv")
+
+# Later, reload it instead of recomputing cross-correlation from scratch:
+xcorr_data = XCorrCache.readFromFile(cat, "xcorr_cache.csv")
+cat_new = dd.relocateMultiEvents(
+    clusters, xcorr_data, xcorr_cfg, solver_cfg,
+    saveProcessing=True, processingDataDir="")
+```
+
+Reusing a cache like this only pays off for pairs it already has entries for — any event/station/phase combination it doesn't cover still gets cross-correlated normally (and is added to `xcorr_data` as usual).
+
+
+### Waveform sources (`pyrtdd.hdd.Proxy`)
+
+`Proxy` is a Python-subclassable base class: any object whose class inherits from `hdd.Proxy` and implements its methods (`loadTrace`, `loadTraces`, `getComponentsInfo`, `filter`, `writeTrace`, `readTrace`) can be handed to `DD`, and `enableCatalogWaveformDiskCache`/preloading work against it automatically, regardless of where the data actually comes from.
+
+`pyrtdd.obspy.waveform` (not imported by `pyrtdd`/`pyrtdd.hdd` — install with `pip install pyrtdd[obspy]` and import it explicitly) provides three ready-made obspy-backed implementations:
+
+```python
+from pyrtdd.obspy.waveform import StreamProxy, ObspyClientProxy, FileScannerProxy
+
+# Wrap waveforms already loaded into an obspy.Stream.
+proxy = StreamProxy(stream, inventory)
+
+# Wrap any obspy client exposing get_waveforms(net, sta, loc, cha, t0, t1),
+# e.g. obspy.clients.filesystem.sds.Client, obspy.clients.fdsn.Client, or
+# obspy.clients.earthworm.Client. get_waveforms_bulk is used automatically
+# for preloading/caching when the client supports it (e.g. FDSN).
+proxy = ObspyClientProxy(client, inventory)
+
+# Scan a local folder for waveform files (any format obspy can read, e.g.
+# miniSEED) and serve them like an archive. The folder is indexed once, by
+# reading file headers only, at construction time.
+proxy = FileScannerProxy("/path/to/waveforms", inventory)
+```
+
+All three need an `obspy.Inventory` (StationXML) to resolve channel orientation (dip/azimuth) for the `R`/`T`/`L2` component transforms — `L2` is the default for S phases, so this is needed even for the default config. If a channel's orientation can't be resolved from the inventory, `guess_zne=True` falls back to assuming a standard Z/N/E layout (dip -90/0/0, azimuth 0/0/90); the default, `guess_zne=False`, raises instead of guessing.
+
+Writing your own `Proxy` subclass (e.g. for a different data source, or a non-obspy pipeline) is the same shape as `pyrtdd.obspy.waveform`'s implementations — subclass `pyrtdd.hdd.Proxy` and implement its six methods.
+
+### Configuration (`XcorrOptions`)
+
+The full set of `XcorrOptions` fields behind the `xcorr_cfg` used in the template above (defaults shown):
+
+```python
+from pyrtdd.hdd import XcorrOptions
+
+PhaseType = Catalog.Phase.Type
+
+xcorr_cfg = XcorrOptions()
+xcorr_cfg.enable = True
+
+# Station filtering (this can be more restrictive than the clustering phase)
+xcorr_cfg.minEvStaDist   = 0   # min event to station distance
+xcorr_cfg.maxEvStaDist   = -1  # max event to station distance. -1 -> disable
+xcorr_cfg.maxInterEvDist = -1  # max inter-event distance. -1 -> disable
+
+# Per-phase-type settings (defaults shown)
+xcorr_cfg.phase[PhaseType.P].minCoef     = 0.70  # min cross-correlation coefficient required (0-1)
+xcorr_cfg.phase[PhaseType.P].startOffset = -0.50 # xcorr window start: secs before the pick
+xcorr_cfg.phase[PhaseType.P].endOffset   = 0.50  # xcorr window end: secs after the pick
+xcorr_cfg.phase[PhaseType.P].winScaling  = 0.02  # window scaling coefficient:
+                                                  #  windowLength = (endOffset - startOffset) + travelTime * winScaling
+xcorr_cfg.phase[PhaseType.P].maxDelay    = 0.50  # max allowed lag between the two traces being cross-correlated, secs
+xcorr_cfg.phase[PhaseType.P].components  = ["Z"] # priority list of components to try, in order, until one succeeds
+                                                  #  each entry is either a literal orientation code (e.g. "Z"), or one
+                                                  #  of the computed transforms "R" (radial), "T" (transversal), "L2"
+                                                  #  ("R"/"T"/"L2" need channel orientation info -- see "Waveform
+                                                  #  sources" above)
+
+xcorr_cfg.phase[PhaseType.S].minCoef     = 0.70
+xcorr_cfg.phase[PhaseType.S].startOffset = -0.50
+xcorr_cfg.phase[PhaseType.S].endOffset   = 1.00
+xcorr_cfg.phase[PhaseType.S].winScaling  = 0.04
+xcorr_cfg.phase[PhaseType.S].maxDelay    = 0.50
+xcorr_cfg.phase[PhaseType.S].components  = ["L2"]
+```
+
+`relocateMultiEvents`/`relocateSingleEvent` also take the `XCorrCache` argument (`xcorr_data` in the template above), used to cache computed coefficients/lags.
 
 ## Relocating a single event
 
@@ -287,3 +397,16 @@ reloc_cat = dd.relocateSingleEvent(
 ```
 
 `dd` finds neighbours for this one event from its background catalog the same way `findClusters` would, then relocates it against them. Note the relocated event gets a new event id in `reloc_cat` (it isn't guaranteed to match `event_id`).
+
+## Logging
+
+`pyrtdd` logs progress (like the cluster/relocation messages seen when running the workflow above) to `stderr`. It defaults to the `info` level. You can change it at any time, e.g. before or between relocation calls:
+
+```python
+from pyrtdd.hdd import Logger
+
+Logger.setLevel(Logger.Level.debug)  # more verbose
+Logger.getLevel()                    # read back the current level
+```
+
+Available levels, from most to least verbose: `Logger.Level.debug`, `Logger.Level.info` (the default), `Logger.Level.warning`, `Logger.Level.error`, `Logger.Level.none` (disables logging entirely).
