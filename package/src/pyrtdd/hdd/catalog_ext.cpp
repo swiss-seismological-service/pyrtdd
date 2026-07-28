@@ -135,7 +135,16 @@ void InitCatalog(py::module_ &m) {
                      .def("writeToFile", &HDD::Catalog::writeToFile)
                      .def(
                          "extractEvent", &HDD::Catalog::extractEvent,
-                         py::arg("eventId"), py::arg("keepEvId"));
+                         py::arg("eventId"), py::arg("keepEvId"))
+                     // Incremental catalog building (e.g. from pyrtdd.obspy.catalog),
+                     // as an alternative to the CSV-file constructor above.
+                     .def(
+                         "addStation", &HDD::Catalog::addStation,
+                         py::arg("station"))
+                     .def(
+                         "addEvent", &HDD::Catalog::addEvent, py::arg("event"),
+                         py::arg("keepEvId"))
+                     .def("addPhase", &HDD::Catalog::addPhase, py::arg("phase"));
 
   InitStation(catalog);
   InitEvent(catalog);

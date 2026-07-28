@@ -14,6 +14,7 @@ Please note that, since this is a Python wrapper, the official documentation is 
 
 - [Installation](#installation)
 - [Example workflow](#example-workflow)
+- [Loading catalogs from obspy](#loading-catalogs-from-obspy)
 - [Configuration](#configuration)
   - [Phase catalog (`Config`)](#phase-catalog-config)
   - [Clustering (`ClusteringOptions`)](#clustering-clusteringoptions)
@@ -54,7 +55,7 @@ Please note that, since this is a Python wrapper, the official documentation is 
     pip install -v .
     ```
 
-    This installs the core package, which has no obspy dependency. If you want to use the obspy-backed waveform sources for cross-correlation (see below), install the `obspy` extra instead:
+    This installs the core package, which has no obspy dependency. If you want to use the obspy-backed catalog and waveform sources for cross-correlation (see below), install the `obspy` extra instead:
 
     ```
     pip install -v ".[obspy]"
@@ -133,6 +134,28 @@ That's the whole shape of it (for the no-cross-correlation case), and it won't c
 
 `relocateMultiEvents` also accepts two extra keyword arguments for debugging: `saveProcessing=True` dumps intermediate per-cluster/per-iteration data (input catalog, event/phase CSVs, the cross-correlation cache) to `processingDataDir`, at the cost of extra disk I/O; if `processingDataDir` is left empty (the default), a directory name is auto-generated in the current working directory.
 
+## Loading catalogs from obspy
+
+If you already have your events/picks as an `obspy.core.event.Catalog` (e.g. fetched from an FDSN event webservice, or as part of a larger obspy-based pipeline) rather than the plain-CSV format used by step 1 above, `pyrtdd.obspy.catalog` converts directly, no CSV round trip needed:
+
+```python
+from pyrtdd.obspy.catalog import catalog_from_obspy
+
+cat = catalog_from_obspy(obspy_catalog, inventory)
+
+# optional: dump the converted catalog
+cat.writeToFile('input-event.csv', 'input-phase.csv', 'input-station.csv')
+```
+
+The reverse direction, `catalog_to_obspy`, builds an `obspy.core.event.Catalog` from a `pyrtdd.hdd.Catalog` (e.g. the relocated catalog `relocateMultiEvents` returns), for writing results out as QuakeML instead of CSV, or for using obspy's own plotting (`cat.plot()`):
+
+```python
+from pyrtdd.obspy.catalog import catalog_to_obspy
+
+obspy_cat_new = catalog_to_obspy(cat_new)
+obspy_cat_new.write("relocated.xml", format="QUAKEML")
+```
+
 ## Configuration
 
 ### Phase catalog (`Config`)
@@ -179,7 +202,7 @@ cluster_cfg.maxNumNeigh = 40  # max neighbors allowed. 0 -> disable
 cluster_cfg.maxNumPhases = 0  # max differential times per event pair required (including P+S). 0 -> disable
 
 # Station filtering
-cluster_cfg.minEvStaToInterEvRatio = 0.  # min hypocenter-station to interevent distance ratio required
+cluster_cfg.minEvStaToInterEvRatio = 3.  # min hypocenter-station to interevent distance ratio required
 cluster_cfg.minEvStaDist = 0.  # min hypocenter-station distance required
 cluster_cfg.maxEvStaDist = -1  # max hypocenter-station distance allowed (-1 -> disable)
 
@@ -235,7 +258,7 @@ ttt = NLLGrid(
     gridModel='iasp91',         # grid model base name: the common filename prefix
                                  #  NonLinLoc gives to its time/angle/mod files, e.g.
                                  #  'iasp91.P.mod.hdr', 'iasp91.P.<station>.time.hdr', ...
-    maxSearchDistance=10,       # NonLinLoc computes one grid file per station. Each file's
+    maxSearchDistance=1.0,      # NonLinLoc computes one grid file per station. Each file's
                                  #  header stores that station's location in grid-relative
                                  #  coordinates; a queried station's lat/lon is then matched
                                  #  to its grid by nearest projected location, not by

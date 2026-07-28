@@ -8,7 +8,9 @@ Fields you must fill in yourself are marked "# TODO". Everything else is a
 tunable default copied from the README -- read the corresponding README
 section before changing it, since most of these interact with each other.
 
-If you need cross-correlation, see relocate_with_xcorr.py instead.
+If you need cross-correlation, see relocate_with_xcorr.py instead. Loading the
+catalog from obspy instead of CSV (step 1 below) also needs the obspy extra,
+but is otherwise independent of cross-correlation.
 
 Usage:
     python examples/relocate.py
@@ -34,14 +36,27 @@ Logger.setLevel(Logger.Level.info)
 
 # -----------------------------------------------------------------------
 # 1. Load the input catalog: stations, events, and phase picks.
-#    Format: https://docs.gempa.de/scrtdd/current/base/multievent.html#event-catalog-plain-csv-files
+#    Pick ONE of the two options below.
 # -----------------------------------------------------------------------
 
+# Option A: plain CSV files.
+#    Format: https://docs.gempa.de/scrtdd/current/base/multievent.html#event-catalog-plain-csv-files
 cat = Catalog(
     "<path/to/station.csv>",  # TODO
     "<path/to/event.csv>",  # TODO
     "<path/to/phase.csv>",  # TODO
 )
+
+# Option B: from an obspy Catalog + Inventory instead (comment out Option A
+# above if using this). Requires the obspy extra: pip install -v ".[obspy]"
+# import obspy
+# from pyrtdd.obspy.catalog import catalog_from_obspy
+#
+# obspy_catalog = obspy.read_events("<path/to/catalog.xml>")  # TODO
+# inventory = obspy.read_inventory("<path/to/inventory.xml>")  # TODO
+# cat = catalog_from_obspy(obspy_catalog, inventory)
+# Optional: dump the converted catalog
+# cat.writeToFile('input-event.csv', 'input-phase.csv', 'input-station.csv')
 
 # -----------------------------------------------------------------------
 # 2. Phase catalog configuration: controls which picks are actually used.
@@ -79,7 +94,7 @@ ttt = Homogeneous(
 # ttt = NLLGrid(
 #     gridPath="<path/to/grid>",  # TODO: directory containing the NonLinLoc grid files
 #     gridModel="<model>",  # TODO: grid model base name (filename prefix), e.g. "iasp91"
-#     maxSearchDistance=0.1,  # max distance [m] allowed between a queried station's
+#     maxSearchDistance=1.0,  # max distance [m] allowed between a queried station's
 #                              #  location and the location recorded in a grid file's
 #                              #  header (see README "Velocity model" for why this is tiny)
 #     swapBytes=False,  # byte-swap grid file contents (set True on endianness mismatch
@@ -115,7 +130,7 @@ cluster_cfg.maxNumNeigh = 40  # max neighbors allowed. 0 -> disable
 cluster_cfg.maxNumPhases = 0  # max differential times per event pair (P+S). 0 -> disable
 
 # Station filtering
-cluster_cfg.minEvStaToInterEvRatio = 0.0  # min hypocenter-station to interevent distance ratio
+cluster_cfg.minEvStaToInterEvRatio = 3.0  # min hypocenter-station to interevent distance ratio
 cluster_cfg.minEvStaDist = 0.0  # min hypocenter-station distance required
 cluster_cfg.maxEvStaDist = -1  # max hypocenter-station distance allowed. -1 -> disable
 
@@ -167,12 +182,21 @@ cat_new = dd.relocateMultiEvents(
 )
 
 # -----------------------------------------------------------------------
-# 8. Save the relocated catalog.
+# 8. Save the relocated catalog. Pick ONE of the two options below.
 #    How to evaluate the results: https://docs.gempa.de/scrtdd/current/base/multievent.html#evaluating-the-results
 # -----------------------------------------------------------------------
 
+# Option A: plain CSV files.
 cat_new.writeToFile(
     "relocated-event.csv",
     "relocated-phase.csv",
     "relocated-station.csv",
 )
+
+# Option B: as an obspy Catalog instead (comment out Option A above if using
+# this), e.g. to write QuakeML or to use obspy's own plotting (cat_new.plot()).
+# Requires the obspy extra: pip install -v ".[obspy]"
+# from pyrtdd.obspy.catalog import catalog_to_obspy
+#
+# obspy_cat_new = catalog_to_obspy(cat_new)
+# obspy_cat_new.write("relocated.xml", format="QUAKEML")

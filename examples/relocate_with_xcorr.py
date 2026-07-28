@@ -44,15 +44,35 @@ PhaseType = Catalog.Phase.Type
 Logger.setLevel(Logger.Level.info)
 
 # -----------------------------------------------------------------------
-# 1. Load the input catalog: stations, events, and phase picks.
-#    Format: https://docs.gempa.de/scrtdd/current/base/multievent.html#event-catalog-plain-csv-files
+# Inventory: shared by catalog loading (step 1, if using Option B) and the
+# waveform source (step 4), which is why it's loaded once, up front.
 # -----------------------------------------------------------------------
 
+inventory = obspy.read_inventory("<path/to/inventory.xml>")  # TODO, or set to None
+guess_zne = False  # fall back to a guessed Z/N/E layout instead of raising when
+                    #  a channel's orientation can't be resolved (step 4 only)
+
+# -----------------------------------------------------------------------
+# 1. Load the input catalog: stations, events, and phase picks.
+#    Pick ONE of the two options below.
+# -----------------------------------------------------------------------
+
+# Option A: plain CSV files.
+#    Format: https://docs.gempa.de/scrtdd/current/base/multievent.html#event-catalog-plain-csv-files
 cat = Catalog(
     "<path/to/station.csv>",  # TODO
     "<path/to/event.csv>",  # TODO
     "<path/to/phase.csv>",  # TODO
 )
+
+# Option B: from the obspy Inventory above plus an obspy Catalog instead
+# (comment out Option A above if using this).
+# from pyrtdd.obspy.catalog import catalog_from_obspy
+#
+# obspy_catalog = obspy.read_events("<path/to/catalog.xml>")  # TODO
+# cat = catalog_from_obspy(obspy_catalog, inventory)
+# optional: dump the converted catalog
+# cat.writeToFile('input-event.csv', 'input-phase.csv', 'input-station.csv')
 
 # -----------------------------------------------------------------------
 # 2. Phase catalog configuration: controls which picks are actually used,
@@ -106,7 +126,7 @@ ttt = Homogeneous(
 # ttt = NLLGrid(
 #     gridPath="<path/to/grid>",  # TODO: directory containing the NonLinLoc grid files
 #     gridModel="<model>",  # TODO: grid model base name (filename prefix), e.g. "iasp91"
-#     maxSearchDistance=0.1,  # max distance [m] allowed between a queried station's
+#     maxSearchDistance=1.0,  # max distance [m] allowed between a queried station's
 #                              #  location and the location recorded in a grid file's
 #                              #  header (see README "Velocity model" for why this is tiny)
 #     swapBytes=False,  # byte-swap grid file contents (set True on endianness mismatch
@@ -125,12 +145,9 @@ ttt = Homogeneous(
 #    ("L2" is the default for S phases, so this is needed even for the
 #    default XcorrOptions config below). Can be None if you don't have
 #    one, provided guess_zne=True (otherwise orientation resolution raises
-#    whenever it's actually needed).
+#    whenever it's actually needed). Both `inventory` and `guess_zne` were
+#    already set above.
 # -----------------------------------------------------------------------
-
-inventory = obspy.read_inventory("<path/to/inventory.xml>")  # TODO, or set to None
-guess_zne = False  # fall back to a guessed Z/N/E layout instead of raising
-                    #  when a channel's orientation can't be resolved
 
 # Option A: wrap waveforms already loaded into an obspy.Stream.
 # stream = obspy.read("<path/to/waveforms>")  # TODO
@@ -195,7 +212,7 @@ cluster_cfg.maxNumNeigh = 40  # max neighbors allowed. 0 -> disable
 cluster_cfg.maxNumPhases = 0  # max differential times per event pair (P+S). 0 -> disable
 
 # Station filtering
-cluster_cfg.minEvStaToInterEvRatio = 0.0  # min hypocenter-station to interevent distance ratio
+cluster_cfg.minEvStaToInterEvRatio = 3.0  # min hypocenter-station to interevent distance ratio
 cluster_cfg.minEvStaDist = 0.0  # min hypocenter-station distance required
 cluster_cfg.maxEvStaDist = -1  # max hypocenter-station distance allowed. -1 -> disable
 
@@ -301,12 +318,20 @@ cat_new = dd.relocateMultiEvents(
 xcorr_data.writeToFile(cat, "xcorr_cache.csv")
 
 # -----------------------------------------------------------------------
-# 10. Save the relocated catalog.
+# 10. Save the relocated catalog. Pick ONE of the two options below.
 #     How to evaluate the results: https://docs.gempa.de/scrtdd/current/base/multievent.html#evaluating-the-results
 # -----------------------------------------------------------------------
 
+# Option A: plain CSV files.
 cat_new.writeToFile(
     "relocated-event.csv",
     "relocated-phase.csv",
     "relocated-station.csv",
 )
+
+# Option B: as an obspy Catalog instead (comment out Option A above if using
+# this), e.g. to write QuakeML or to use obspy's own plotting (cat_new.plot()).
+# from pyrtdd.obspy.catalog import catalog_to_obspy
+#
+# obspy_cat_new = catalog_to_obspy(cat_new)
+# obspy_cat_new.write("relocated.xml", format="QUAKEML")
