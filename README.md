@@ -258,7 +258,7 @@ ttt = NLLGrid(
     gridModel='iasp91',         # grid model base name: the common filename prefix
                                  #  NonLinLoc gives to its time/angle/mod files, e.g.
                                  #  'iasp91.P.mod.hdr', 'iasp91.P.<station>.time.hdr', ...
-    maxSearchDistance=1.0,      # NonLinLoc computes one grid file per station. Each file's
+    maxSearchDistance=10.       # NonLinLoc computes one grid file per station. Each file's
                                  #  header stores that station's location in grid-relative
                                  #  coordinates; a queried station's lat/lon is then matched
                                  #  to its grid by nearest projected location, not by

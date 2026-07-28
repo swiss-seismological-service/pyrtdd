@@ -39,6 +39,59 @@ def _is_pick_used(pick, arrival):
     return bool(arrival.time_weight)
 
 
+def _resolve_station_coordinates(inventory, net, sta, loc, cha, time):
+    """Resolve (latitude, longitude, elevation) for a station, tolerating
+    picks whose `waveform_id` doesn't carry a channel code precise enough
+    for an exact match.
+
+    Tries, in order:
+    1. `net.sta.loc.cha` exactly as named by the pick.
+    2. `net.sta.loc`, considering every channel active at `time` -- accepted
+       only if they all agree on the same coordinates (channels sharing a
+       location code are normally co-located, but this is checked rather
+       than assumed).
+    3. `net.sta` alone (any location), but only if exactly one channel is
+       configured for the station at `time` -- different location codes
+       can mean physically different placements, so this is only safe
+       when there's no ambiguity left to resolve.
+
+    Raises the exception from step 1 if every fallback fails.
+    """
+    try:
+        return inventory.get_coordinates(f"{net}.{sta}.{loc}.{cha}", time)
+    except Exception as exc:
+        error = exc
+
+    try:
+        selected = inventory.select(network=net, station=sta, location=loc, time=time)
+        channels = [c for n in selected for s in n for c in s]
+        coords = {(c.latitude, c.longitude, c.elevation) for c in channels}
+        if len(coords) == 1:
+            latitude, longitude, elevation = next(iter(coords))
+            return {
+                "latitude": latitude,
+                "longitude": longitude,
+                "elevation": elevation,
+            }
+    except Exception:
+        pass
+
+    try:
+        selected = inventory.select(network=net, station=sta, time=time)
+        channels = [c for n in selected for s in n for c in s]
+        if len(channels) == 1:
+            c = channels[0]
+            return {
+                "latitude": c.latitude,
+                "longitude": c.longitude,
+                "elevation": c.elevation,
+            }
+    except Exception:
+        pass
+
+    raise error
+
+
 def catalog_from_obspy(
     obspy_catalog, inventory, discard_unused_automatic_picks=False
 ):
@@ -54,8 +107,11 @@ def catalog_from_obspy(
 
     Stations are added lazily, one per (network, station, location) actually
     referenced by a used phase, resolved from `inventory` at that phase's
-    pick time; a phase whose station can't be resolved that way is skipped
-    (its event is still created, just without that phase).
+    pick time -- see `_resolve_station_coordinates` for how a pick with a
+    missing or non-matching channel code still falls back to a usable
+    coordinate. A phase whose station can't be resolved even with that
+    fallback is skipped (its event is still created, just without that
+    phase).
 
     If `discard_unused_automatic_picks` is True, non-manual picks with a
     zero or missing `Arrival.time_weight` are skipped, matching scrtdd's own
@@ -120,8 +176,8 @@ def catalog_from_obspy(
 
             if stationId not in cat.getStations():
                 try:
-                    coords = inventory.get_coordinates(
-                        f"{net}.{sta}.{loc}.{cha}", pick.time
+                    coords = _resolve_station_coordinates(
+                        inventory, net, sta, loc, cha, pick.time
                     )
                 except Exception as e:
                     _logger.warning(

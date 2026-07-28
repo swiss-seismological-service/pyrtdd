@@ -55,7 +55,9 @@ cat = Catalog(
 # obspy_catalog = obspy.read_events("<path/to/catalog.xml>")  # TODO
 # inventory = obspy.read_inventory("<path/to/inventory.xml>")  # TODO
 # cat = catalog_from_obspy(obspy_catalog, inventory)
-# Optional: dump the converted catalog
+#
+# Optional: dump the converted catalog, you can load this catalog the next time
+#
 # cat.writeToFile('input-event.csv', 'input-phase.csv', 'input-station.csv')
 
 # -----------------------------------------------------------------------
@@ -94,7 +96,7 @@ ttt = Homogeneous(
 # ttt = NLLGrid(
 #     gridPath="<path/to/grid>",  # TODO: directory containing the NonLinLoc grid files
 #     gridModel="<model>",  # TODO: grid model base name (filename prefix), e.g. "iasp91"
-#     maxSearchDistance=1.0,  # max distance [m] allowed between a queried station's
+#     maxSearchDistance=10.0,  # max distance [m] allowed between a queried station's
 #                              #  location and the location recorded in a grid file's
 #                              #  header (see README "Velocity model" for why this is tiny)
 #     swapBytes=False,  # byte-swap grid file contents (set True on endianness mismatch

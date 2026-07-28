@@ -150,6 +150,104 @@ def test_catalog_from_obspy_skips_phase_with_unresolvable_station(inventory):
     assert len(hdd_cat.getStations()) == 0
 
 
+def test_catalog_from_obspy_missing_channel_code_falls_back_to_location(inventory):
+    # `inventory`'s STA1 only has one HHZ channel at location "", so a pick
+    # with no channel code can't match it exactly but can still be resolved
+    # unambiguously through that (network, station, location).
+    pick = _pick(T0 + 5.0, channel="")
+    obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick)])
+
+    hdd_cat = catalog_from_obspy(obspy_cat, inventory)
+    assert "NET.STA1." in hdd_cat.getStations()
+    assert len(next(iter(hdd_cat.getPhases().values()))) == 1
+
+
+def test_catalog_from_obspy_missing_channel_code_falls_back_with_three_components():
+    # a typical 3-component station: Z/N/E channels co-located at the same
+    # location code, all agreeing on coordinates. A pick with no channel
+    # code should still resolve through that agreement.
+    chans = [
+        Channel(code=code, location_code="", latitude=47.0, longitude=8.0,
+                elevation=500.0, depth=0.0)
+        for code in ("HHZ", "HHN", "HHE")
+    ]
+    sta = Station(code="STA1", latitude=47.0, longitude=8.0, elevation=500.0, channels=chans)
+    inv = Inventory(networks=[Network(code="NET", stations=[sta])])
+
+    pick = _pick(T0 + 5.0, channel="")
+    obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick)])
+
+    hdd_cat = catalog_from_obspy(obspy_cat, inv)
+    assert "NET.STA1." in hdd_cat.getStations()
+    assert len(next(iter(hdd_cat.getPhases().values()))) == 1
+
+
+def test_catalog_from_obspy_missing_channel_code_stays_unresolved_when_location_channels_disagree():
+    # same location code, but channels genuinely disagree on coordinates
+    # (e.g. a mismodeled StationXML): step 2 must not just pick the first
+    # one arbitrarily.
+    chan1 = Channel(
+        code="HHZ", location_code="", latitude=47.0, longitude=8.0,
+        elevation=500.0, depth=0.0,
+    )
+    chan2 = Channel(
+        code="HHN", location_code="", latitude=47.5, longitude=8.5,
+        elevation=600.0, depth=0.0,
+    )
+    sta = Station(code="STA1", latitude=47.0, longitude=8.0, elevation=500.0, channels=[chan1, chan2])
+    inv = Inventory(networks=[Network(code="NET", stations=[sta])])
+
+    pick = _pick(T0 + 5.0, channel="")
+    obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick)])
+
+    hdd_cat = catalog_from_obspy(obspy_cat, inv)
+    (eid,) = hdd_cat.getEvents().keys()
+    assert hdd_cat.getPhases().get(eid, []) == []
+    assert len(hdd_cat.getStations()) == 0
+
+
+def test_catalog_from_obspy_missing_location_and_channel_falls_back_when_station_has_one_channel():
+    # only one channel exists for NET.STA1 overall (at location "00"), so a
+    # pick naming neither location nor channel is still unambiguous.
+    chan = Channel(
+        code="HHZ", location_code="00", latitude=47.0, longitude=8.0,
+        elevation=500.0, depth=0.0,
+    )
+    sta = Station(code="STA1", latitude=47.0, longitude=8.0, elevation=500.0, channels=[chan])
+    inv = Inventory(networks=[Network(code="NET", stations=[sta])])
+
+    pick = _pick(T0 + 5.0, location="", channel="")
+    obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick)])
+
+    hdd_cat = catalog_from_obspy(obspy_cat, inv)
+    assert "NET.STA1." in hdd_cat.getStations()
+    assert hdd_cat.getStations()["NET.STA1."].latitude == 47.0
+    assert len(next(iter(hdd_cat.getPhases().values()))) == 1
+
+
+def test_catalog_from_obspy_missing_location_and_channel_stays_unresolved_when_ambiguous():
+    # two channels at two different locations for NET.STA1: a pick naming
+    # neither can't be resolved unambiguously, so it's still skipped.
+    chan1 = Channel(
+        code="HHZ", location_code="00", latitude=47.0, longitude=8.0,
+        elevation=500.0, depth=0.0,
+    )
+    chan2 = Channel(
+        code="HHZ", location_code="10", latitude=47.5, longitude=8.5,
+        elevation=600.0, depth=0.0,
+    )
+    sta = Station(code="STA1", latitude=47.0, longitude=8.0, elevation=500.0, channels=[chan1, chan2])
+    inv = Inventory(networks=[Network(code="NET", stations=[sta])])
+
+    pick = _pick(T0 + 5.0, location="", channel="")
+    obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick)])
+
+    hdd_cat = catalog_from_obspy(obspy_cat, inv)
+    (eid,) = hdd_cat.getEvents().keys()
+    assert hdd_cat.getPhases().get(eid, []) == []
+    assert len(hdd_cat.getStations()) == 0
+
+
 def test_catalog_from_obspy_discard_unused_automatic_picks(inventory):
     pick = _pick(T0 + 5.0, evaluation_mode="automatic")
     obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick, weight=0.0)])
