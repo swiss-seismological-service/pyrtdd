@@ -26,6 +26,7 @@ from pyrtdd.hdd import (
     Homogeneous,
     NLLGrid,
     ClusteringOptions,
+    Neighbours,
     SolverOptions,
     XcorrOptions,
     XCorrCache,
@@ -301,21 +302,38 @@ solver_cfg.xcorrWeightScaler = 2.0  # scales the weight given to cross-correlati
 #    auto-generate a directory name.
 # -----------------------------------------------------------------------
 
+# Clusters: findClusters can be slow on large catalogs, and
+# relocateMultiEvents consumes `clusters` (it can't be reused for a second
+# run). Pick ONE of the two options below to get `clusters`.
+
+# Clusters, Option A: compute clusters now (default).
 clusters = dd.findClusters(cluster_cfg)
 
-# xcorr_data gets populated with the computed coefficients/lags as a side
-# effect, which you can reuse in a later call to skip recomputing pairs it
-# already has entries for -- pick ONE of the two options below. Reusing a
-# cache like this only pays off for pairs it already has entries for: any
-# event/station/phase combination it doesn't cover still gets
+# Optional: save clusters to disk, one file per cluster, so a later run can
+# reload them via Option B below instead of recomputing.
+# for i, cluster in enumerate(clusters):
+#     Neighbours.writeToFile(cluster, cat, f"cluster_{i}.csv")
+
+# Clusters, Option B: reload clusters saved by an earlier run instead of
+# recomputing them (comment out Option A above if using this). `cat` must be
+# the same catalog used to compute the clusters originally.
+# import glob
+# clusters = [Neighbours.readFromFile(cat, f) for f in glob.glob("cluster_*.csv")]
+
+# Xcorr cache: xcorr_data gets populated with the computed coefficients/lags
+# as a side effect, which you can reuse in a later call to skip recomputing
+# pairs it already has entries for -- pick ONE of the two options below.
+# Reusing a cache like this only pays off for pairs it already has entries
+# for: any event/station/phase combination it doesn't cover still gets
 # cross-correlated normally (and is added to xcorr_data as usual).
 
-# Option A: start with an empty cache (default).
+# Xcorr cache, Option A: start with an empty cache (default).
 xcorr_data = XCorrCache()
 
-# Option B: reload results computed by an earlier run instead of recomputing
-# them from scratch (comment out Option A above if using this). `cat` must
-# be the same background catalog the cache was originally computed against.
+# Xcorr cache, Option B: reload results computed by an earlier run instead of
+# recomputing them from scratch (comment out Option A above if using this).
+# `cat` must be the same background catalog the cache was originally computed
+# against.
 # xcorr_data = XCorrCache.readFromFile(cat, "<path/to/xcorr_cache.csv>")  # TODO
 
 cat_new = dd.relocateMultiEvents(

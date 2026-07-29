@@ -79,7 +79,7 @@ If you want to run the test suite, install with the `test` and `obspy` extras an
 
 Ready-to-fill-in versions of the workflow below live in [`examples/`](examples/): [`relocate.py`](examples/relocate.py) (no cross-correlation) and [`relocate_with_xcorr.py`](examples/relocate_with_xcorr.py) (with cross-correlation).
 
-Running a relocation is always the same five steps: load a catalog, pick a velocity model, build the relocator, cluster + relocate, save the result. This runs as-is against the test data in this repo:
+Running a relocation is always the same six steps: load a catalog, pick a velocity model, build the relocator, cluster, relocate, save the result. This runs as-is against the test data in this repo:
 
 ```python
 from pyrtdd.hdd import (
@@ -130,7 +130,7 @@ cat_new.writeToFile('relocated-station.csv',
 
 ![reloc](https://user-images.githubusercontent.com/15273575/205635799-80128f78-be04-48dc-8c17-32887d929552.png)
 
-That's the whole shape of it (for the no-cross-correlation case), and it won't change. Everything below is just about *what you put into* the three config objects created above (`Config`, `ClusteringOptions`, and `SolverOptions`) before handing them to `DD`/`findClusters`/`relocateMultiEvents`.
+That's the whole shape of it (for the no-cross-correlation case), and it won't change. What influence the relocation are the three config objects created above (`Config`, `ClusteringOptions`, and `SolverOptions`), which are explained later.
 
 `relocateMultiEvents` also accepts two extra keyword arguments for debugging: `saveProcessing=True` dumps intermediate per-cluster/per-iteration data (input catalog, event/phase CSVs, the cross-correlation cache) to `processingDataDir`, at the cost of extra disk I/O; if `processingDataDir` is left empty (the default), a directory name is auto-generated in the current working directory.
 
@@ -143,7 +143,7 @@ from pyrtdd.obspy.catalog import catalog_from_obspy
 
 cat = catalog_from_obspy(obspy_catalog, inventory)
 
-# optional: dump the converted catalog
+# optional: dump the converted catalog, which can be loaded later without obspy
 cat.writeToFile('input-station.csv', 'input-event.csv', 'input-phase.csv')
 ```
 
@@ -258,7 +258,7 @@ ttt = NLLGrid(
     gridModel='iasp91',         # grid model base name: the common filename prefix
                                  #  NonLinLoc gives to its time/angle/mod files, e.g.
                                  #  'iasp91.P.mod.hdr', 'iasp91.P.<station>.time.hdr', ...
-    maxSearchDistance=10.       # NonLinLoc computes one grid file per station. Each file's
+    maxSearchDistance=10.,      # NonLinLoc computes one grid file per station. Each file's
                                  #  header stores that station's location in grid-relative
                                  #  coordinates; a queried station's lat/lon is then matched
                                  #  to its grid by nearest projected location, not by
@@ -314,8 +314,8 @@ for i, cluster in enumerate(clusters):
     Neighbours.writeToFile(cluster, cat, f"cluster_{i}.csv")
 
 # Later, reload them (`cat` must be the same catalog used to compute the clusters):
-num_clusters=3 # Select the number of clusters you have
-clusters = [Neighbours.readFromFile(cat, f"cluster_{i}.csv") for i in range(num_clusters)]
+import glob
+clusters = [Neighbours.readFromFile(cat, f) for f in glob.glob("cluster_*.csv")]
 
 cat_new = dd.relocateMultiEvents(
     clusters, solver_cfg,
@@ -415,24 +415,24 @@ dd.enableCatalogWaveformDiskCache("/path/to/waveform_cache", diskTraceMinLen=10.
 dd.disableCatalogWaveformDiskCache()  # back to fetching from `proxy` directly
 ```
 
-This is a read-through/write-through cache, not a one-off bulk download: the first relocation still pays the full fetch cost for every trace it needs (and writes each one to `cacheDir` as it's fetched), but any later run against the same catalog and cache directory, e.g. while tuning `xcorr_cfg`/`solver_cfg`, reads from disk instead of fetching again.
+The first relocation still pays the full fetch cost for every trace it needs (and writes each one to `cacheDir` as it's fetched), but any later run against the same catalog and cache directory, e.g. while tuning `xcorr_cfg`/`solver_cfg`, reads from disk instead of fetching again. The waveforms are stored raw, before filtering (if used at all).
 
 `diskTraceMinLen` (secs, default 10.) is the minimum length of data cached around each pick, regardless of how short the cross-correlation window itself needs to be. Caching a wider window than any single `xcorr_cfg` setting needs means later changes to `xcorr_cfg`'s window offsets can often still be served entirely from the existing cache, without triggering a re-fetch.
 
-This relies on the `WaveformProxy`'s `writeTrace`/`readTrace` actually being implemented, which they are for all three `pyrtdd.obspy.waveform` backends (as miniSEED read/write). A proxy that raises `NotImplementedError` for either just logs a warning and falls back to fetching every time, without breaking the relocation.
-
-Rather than filling the cache as a side effect of a relocation run, `dd.loadCatalogWaveformDiskCache(xcorr_cfg)` populates it upfront in one pass: it walks every phase of the background catalog, fetches whatever isn't cached yet from `proxy` (in batch, per event), and writes it to `cacheDir`. It's a no-op, with a log message, if the disk cache isn't enabled:
+Rather than filling the cache as a side effect of a relocation run (`dd.relocateMultiEvents`), the method `dd.loadCatalogWaveformDiskCache(xcorr_cfg)` populates it upfront in one pass: it walks every phase of the background catalog, fetches whatever isn't cached yet from `proxy` (in batch, per event), and writes it to `cacheDir`. This lets you cache even waveforms for phases that a specific clustering configuration wouldn't select:
 
 ```python
 dd.enableCatalogWaveformDiskCache("/path/to/waveform_cache")
-dd.loadCatalogWaveformDiskCache(xcorr_cfg)  # dumps every waveform the catalog needs to cacheDir
+dd.loadCatalogWaveformDiskCache(xcorr_cfg)  # cache every waveform for every phase in the catalog to /path/to/waveform_cache
 ```
 
-Once a catalog's waveforms have been dumped this way, a later run against the same catalog and cache directory no longer needs a proxy backed by a live/reachable data source: cache reads go through the proxy's `readTrace` (not `loadTrace`/`_fetch`), so a `wf` that's never actually connected to anything works fine, as long as `enableCatalogWaveformDiskCache` is called with the same `cacheDir` first and the cache fully covers what the run asks for (same catalog, same-or-narrower `xcorr_cfg` window) — every trace is then served from disk and `loadTrace` is never invoked. `NoWaveformProxy` itself doesn't work for this: its `readTrace` always raises, so it can't even serve cache hits. Use one of the real `pyrtdd.obspy.waveform` backends instead, pointed at empty/unreachable data:
+Once a catalog's waveforms have been dumped this way, a later run against the same catalog and cache directory no longer needs a waveform source, as long as `enableCatalogWaveformDiskCache` is called with the same `cacheDir` first and the cache fully covers what the run asks for (same catalog, same-or-narrower `xcorr_cfg` window):
 
 ```python
 proxy = StreamProxy(obspy.Stream(), inventory)  # empty stream: only readTrace/writeTrace are used
 dd = DD(cat, cfg, ttt, proxy)
+# "/path/to/waveform_cache" was populated by either dd.loadCatalogWaveformDiskCache
+# or just a dd.relocateMultiEvents with cache enabled via dd.enableCatalogWaveformDiskCache
 dd.enableCatalogWaveformDiskCache("/path/to/waveform_cache")  # cache must still be enabled
 # ... find clusters and relocate as usual, reading waveforms from cacheDir ...
 ```

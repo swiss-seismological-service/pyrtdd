@@ -22,6 +22,7 @@ from pyrtdd.hdd import (
     Homogeneous,
     NLLGrid,
     ClusteringOptions,
+    Neighbours,
     SolverOptions,
     DD,
     Logger,
@@ -174,7 +175,23 @@ solver_cfg.xcorrWeightScaler = 2.0
 #    processingDataDir empty to auto-generate a directory name.
 # -----------------------------------------------------------------------
 
+# findClusters can be slow on large catalogs, and relocateMultiEvents
+# consumes `clusters` (it can't be reused for a second run). Pick ONE of the
+# two options below to get `clusters`.
+
+# Option A: compute clusters now (default).
 clusters = dd.findClusters(cluster_cfg)
+
+# Optional: save clusters to disk, one file per cluster, so a later run can
+# reload them via Option B below instead of recomputing.
+# for i, cluster in enumerate(clusters):
+#     Neighbours.writeToFile(cluster, cat, f"cluster_{i}.csv")
+
+# Option B: reload clusters saved by an earlier run instead of recomputing
+# them (comment out Option A above if using this). `cat` must be the same
+# catalog used to compute the clusters originally.
+# import glob
+# clusters = [Neighbours.readFromFile(cat, f) for f in glob.glob("cluster_*.csv")]
 
 cat_new = dd.relocateMultiEvents(
     clusters,
