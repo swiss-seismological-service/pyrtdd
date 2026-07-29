@@ -184,6 +184,9 @@ void InitDd(py::module_ &m) {
       .def(
           "disableCatalogWaveformDiskCache",
           &DD::disableCatalogWaveformDiskCache)
+      .def(
+          "loadCatalogWaveformDiskCache",
+          &DD::loadCatalogWaveformDiskCache, py::arg("xcorrOpt"))
       .def("unloadWaveforms", &DD::unloadWaveforms)
       .def("findClusters", &DD::findClusters)
       // `clustOpt` is dropped here: scrtdd exposes it only on the sibling

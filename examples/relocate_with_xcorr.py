@@ -195,6 +195,10 @@ dd = DD(cat, cfg, ttt, proxy)
 #                             #  than any single xcorr_cfg setting needs means later changes
 #                             #  to its window offsets can often still hit the cache
 # )
+#
+# To warm the cache for the whole catalog upfront instead of filling it
+# lazily during relocation, see dd.loadCatalogWaveformDiskCache(xcorr_cfg)
+# in step 7, once xcorr_cfg is configured.
 
 # -----------------------------------------------------------------------
 # 6. Clustering: controls which events/phases enter the double-difference
@@ -259,6 +263,14 @@ xcorr_cfg.phase[PhaseType.S].endOffset = 1.00
 xcorr_cfg.phase[PhaseType.S].winScaling = 0.04
 xcorr_cfg.phase[PhaseType.S].maxDelay = 0.50
 xcorr_cfg.phase[PhaseType.S].components = ["L2"]
+
+# Optional: if the disk cache was enabled in step 5, warm it for the whole
+# catalog now instead of letting it fill lazily during relocation below.
+# No-op (with a log message) if the disk cache isn't enabled. See README
+# "Caching waveforms on disk" for the follow-up run this enables: once the
+# cache is fully warm, later runs against the same catalog/cacheDir don't
+# need `proxy` connected to a real, reachable data source anymore.
+# dd.loadCatalogWaveformDiskCache(xcorr_cfg)
 
 # -----------------------------------------------------------------------
 # 8. Solver: double-difference equations system solver configuration.

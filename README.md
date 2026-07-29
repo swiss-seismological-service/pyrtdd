@@ -420,6 +420,22 @@ This is a read-through/write-through cache, not a one-off bulk download: the fir
 
 This relies on the `WaveformProxy`'s `writeTrace`/`readTrace` actually being implemented, which they are for all three `pyrtdd.obspy.waveform` backends (as miniSEED read/write). A proxy that raises `NotImplementedError` for either just logs a warning and falls back to fetching every time, without breaking the relocation.
 
+Rather than filling the cache as a side effect of a relocation run, `dd.loadCatalogWaveformDiskCache(xcorr_cfg)` populates it upfront in one pass: it walks every phase of the background catalog, fetches whatever isn't cached yet from `proxy` (in batch, per event), and writes it to `cacheDir`. It's a no-op, with a log message, if the disk cache isn't enabled:
+
+```python
+dd.enableCatalogWaveformDiskCache("/path/to/waveform_cache")
+dd.loadCatalogWaveformDiskCache(xcorr_cfg)  # dumps every waveform the catalog needs to cacheDir
+```
+
+Once a catalog's waveforms have been dumped this way, a later run against the same catalog and cache directory no longer needs a proxy backed by a live/reachable data source: cache reads go through the proxy's `readTrace` (not `loadTrace`/`_fetch`), so a `wf` that's never actually connected to anything works fine, as long as `enableCatalogWaveformDiskCache` is called with the same `cacheDir` first and the cache fully covers what the run asks for (same catalog, same-or-narrower `xcorr_cfg` window) — every trace is then served from disk and `loadTrace` is never invoked. `NoWaveformProxy` itself doesn't work for this: its `readTrace` always raises, so it can't even serve cache hits. Use one of the real `pyrtdd.obspy.waveform` backends instead, pointed at empty/unreachable data:
+
+```python
+proxy = StreamProxy(obspy.Stream(), inventory)  # empty stream: only readTrace/writeTrace are used
+dd = DD(cat, cfg, ttt, proxy)
+dd.enableCatalogWaveformDiskCache("/path/to/waveform_cache")  # cache must still be enabled
+# ... find clusters and relocate as usual, reading waveforms from cacheDir ...
+```
+
 ### Configuration (`XcorrOptions`)
 
 Before the `XcorrOptions` fields themselves, one related setting lives on `cfg` (the `Config` from step 3 in the workflow above, not `xcorr_cfg`): `cfg.wfFilter` controls preprocessing applied to waveforms loaded for cross-correlation (unused if cross-correlation is disabled). Every trace is demeaned automatically first, regardless of these settings; resampling then filtering happen after that, in that order, only if configured below.
