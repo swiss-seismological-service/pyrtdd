@@ -314,7 +314,8 @@ for i, cluster in enumerate(clusters):
     Neighbours.writeToFile(cluster, cat, f"cluster_{i}.csv")
 
 # Later, reload them (`cat` must be the same catalog used to compute the clusters):
-clusters = [Neighbours.readFromFile(cat, f"cluster_{i}.csv") for i in range(len(clusters))]
+num_clusters=3 # Select the number of clusters you have
+clusters = [Neighbours.readFromFile(cat, f"cluster_{i}.csv") for i in range(num_clusters)]
 
 cat_new = dd.relocateMultiEvents(
     clusters, solver_cfg,
