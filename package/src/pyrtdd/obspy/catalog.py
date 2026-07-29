@@ -40,51 +40,75 @@ def _is_pick_used(pick, arrival):
 
 
 def _resolve_station_coordinates(inventory, net, sta, loc, cha, time):
-    """Resolve (latitude, longitude, elevation) for a station, tolerating
-    picks whose `waveform_id` doesn't carry a channel code precise enough
-    for an exact match.
+    """Resolve (latitude, longitude, elevation, locationCode, channelCode)
+    for a station, tolerating picks whose `waveform_id` doesn't carry a
+    location/channel code precise enough for an exact match.
+
+    `locationCode`/`channelCode` in the result are whatever `net.sta.loc.cha`
+    was actually matched in the inventory to obtain the coordinates below --
+    not necessarily `loc`/`cha` as passed in -- since the caller needs those
+    to populate the phase's own `locationCode`/`channelCode` correctly (a
+    pick with a missing/wrong location or channel code would otherwise leave
+    the resulting catalog referencing a location/channel that doesn't
+    actually exist).
 
     Tries, in order:
-    1. `net.sta.loc.cha` exactly as named by the pick.
-    2. `net.sta.loc`, considering every channel active at `time` -- accepted
-       only if they all agree on the same coordinates (channels sharing a
-       location code are normally co-located, but this is checked rather
-       than assumed).
-    3. `net.sta` alone (any location), but only if exactly one channel is
-       configured for the station at `time` -- different location codes
-       can mean physically different placements, so this is only safe
-       when there's no ambiguity left to resolve.
+    1. `net.sta.loc.cha` exactly as named by the pick. `loc`/`cha` are
+       returned unchanged.
+    2. If that fails, gather every channel of `net.sta` active at `time`,
+       narrowed to `loc` if it's non-empty and to `cha` if it's non-empty
+       (an empty `loc`/`cha` is treated as "unspecified", not as a literal
+       blank code to filter on). This only resolves if what's left is
+       unambiguous:
+       - exactly one distinct location code among the candidates -- so if
+         `loc` was empty and the station has channels at more than one
+         location, resolution fails rather than guessing which one;
+       - exactly one distinct band+instrument code (channel code without
+         its last, orientation, character) among the candidates -- so
+         e.g. co-located "HH?" and "BH?" channels also fail to resolve,
+         even though they'd agree on coordinates;
+       - and, as a final sanity check, all candidates agree on coordinates
+         (channels sharing a location code are normally co-located, but
+         this is checked rather than assumed).
+       `locationCode` becomes that one location. `channelCode` becomes the
+       single candidate's own full code if there's exactly one left (e.g.
+       `cha` was given, or only one component exists), otherwise there's
+       more than one but they're all components of the same instrument
+       (step 2's second bullet), and which specific one the pick actually
+       came from can't be determined -- `channelCode` is then just the
+       shared band+instrument code (2 characters, no orientation letter).
 
-    Raises the exception from step 1 if every fallback fails.
+    Raises the exception from step 1 if the fallback can't resolve either.
     """
     try:
-        return inventory.get_coordinates(f"{net}.{sta}.{loc}.{cha}", time)
+        coords = inventory.get_coordinates(f"{net}.{sta}.{loc}.{cha}", time)
+        return {**coords, "locationCode": loc, "channelCode": cha}
     except Exception as exc:
         error = exc
 
     try:
-        selected = inventory.select(network=net, station=sta, location=loc, time=time)
+        selected = inventory.select(network=net, station=sta, time=time)
         channels = [c for n in selected for s in n for c in s]
-        coords = {(c.latitude, c.longitude, c.elevation) for c in channels}
-        if len(coords) == 1:
-            latitude, longitude, elevation = next(iter(coords))
+        if loc:
+            channels = [c for c in channels if c.location_code == loc]
+        if cha:
+            channels = [c for c in channels if c.code == cha]
+
+        locs = {c.location_code for c in channels}
+        roots = {c.code[:2] for c in channels}
+        coordSet = {(c.latitude, c.longitude, c.elevation) for c in channels}
+
+        if channels and len(locs) == 1 and len(roots) == 1 and len(coordSet) == 1:
+            latitude, longitude, elevation = next(iter(coordSet))
+            resolvedCha = cha or (
+                channels[0].code if len(channels) == 1 else next(iter(roots))
+            )
             return {
                 "latitude": latitude,
                 "longitude": longitude,
                 "elevation": elevation,
-            }
-    except Exception:
-        pass
-
-    try:
-        selected = inventory.select(network=net, station=sta, time=time)
-        channels = [c for n in selected for s in n for c in s]
-        if len(channels) == 1:
-            c = channels[0]
-            return {
-                "latitude": c.latitude,
-                "longitude": c.longitude,
-                "elevation": c.elevation,
+                "locationCode": next(iter(locs)),
+                "channelCode": resolvedCha,
             }
     except Exception:
         pass
@@ -108,10 +132,21 @@ def catalog_from_obspy(
     Stations are added lazily, one per (network, station, location) actually
     referenced by a used phase, resolved from `inventory` at that phase's
     pick time -- see `_resolve_station_coordinates` for how a pick with a
-    missing or non-matching channel code still falls back to a usable
-    coordinate. A phase whose station can't be resolved even with that
-    fallback is skipped (its event is still created, just without that
-    phase).
+    missing or non-matching location/channel code still falls back to a
+    usable coordinate, but only when the inventory leaves no ambiguity about
+    which one. The phase's own `locationCode`/`channelCode` are set from
+    whatever `_resolve_station_coordinates` actually matched, not
+    necessarily the pick's own (possibly missing or wrong) values -- so e.g.
+    a pick with no location code ends up with the real one, not "". If the
+    pick's channel code was missing and multiple components of the same
+    instrument were viable (e.g. any of "HHZ"/"HHN"/"HHE"), `channelCode`
+    ends up as just the shared 2-character band+instrument code ("HH"),
+    not a guessed orientation. A phase whose station can't be resolved
+    unambiguously even with that fallback is skipped (its event is still
+    created, just without that phase). Resolution is cached per distinct
+    (network, station, location, channel) as named by the picks themselves,
+    so it only hits `inventory` once per distinct combination even across
+    many events/phases.
 
     If `discard_unused_automatic_picks` is True, non-manual picks with a
     zero or missing `Arrival.time_weight` are skipped, matching scrtdd's own
@@ -123,6 +158,7 @@ def catalog_from_obspy(
     """
 
     cat = Catalog()
+    resolved_cache = {}  # (net, sta, loc, cha) -> resolved coords dict, or None
 
     for event in obspy_catalog:
         origin = event.preferred_origin()
@@ -170,22 +206,35 @@ def catalog_from_obspy(
             wid = pick.waveform_id
             net = wid.network_code or ""
             sta = wid.station_code or ""
-            loc = wid.location_code or ""
-            cha = wid.channel_code or ""
-            stationId = f"{net}.{sta}.{loc}"
+            rawLoc = wid.location_code or ""
+            rawCha = wid.channel_code or ""
 
-            if stationId not in cat.getStations():
+            # Resolution (and thus the actual location/channel code) can
+            # depend on the pick's own, possibly incomplete, location/channel
+            # code -- see `_resolve_station_coordinates` -- so it must happen
+            # before `stationId` is computed below, not after.
+            cacheKey = (net, sta, rawLoc, rawCha)
+            if cacheKey not in resolved_cache:
                 try:
-                    coords = _resolve_station_coordinates(
-                        inventory, net, sta, loc, cha, pick.time
+                    resolved_cache[cacheKey] = _resolve_station_coordinates(
+                        inventory, net, sta, rawLoc, rawCha, pick.time
                     )
                 except Exception as e:
                     _logger.warning(
-                        "Cannot resolve station %s in the inventory (%s), "
-                        "skipping this phase",
-                        stationId, e,
+                        "Cannot resolve station %s.%s.%s.%s in the inventory "
+                        "(%s), skipping this phase",
+                        net, sta, rawLoc, rawCha, e,
                     )
-                    continue
+                    resolved_cache[cacheKey] = None
+            coords = resolved_cache[cacheKey]
+            if coords is None:
+                continue
+
+            loc = coords["locationCode"]
+            cha = coords["channelCode"]
+            stationId = f"{net}.{sta}.{loc}"
+
+            if stationId not in cat.getStations():
                 cat.addStation(
                     Catalog.Station(
                         stationId,

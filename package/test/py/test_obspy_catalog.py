@@ -159,7 +159,10 @@ def test_catalog_from_obspy_missing_channel_code_falls_back_to_location(inventor
 
     hdd_cat = catalog_from_obspy(obspy_cat, inventory)
     assert "NET.STA1." in hdd_cat.getStations()
-    assert len(next(iter(hdd_cat.getPhases().values()))) == 1
+    (phase,) = next(iter(hdd_cat.getPhases().values()))
+    # the pick's own channel code was "": the resolved (real) one is used instead
+    assert phase.locationCode == ""
+    assert phase.channelCode == "HHZ"
 
 
 def test_catalog_from_obspy_missing_channel_code_falls_back_with_three_components():
@@ -179,7 +182,36 @@ def test_catalog_from_obspy_missing_channel_code_falls_back_with_three_component
 
     hdd_cat = catalog_from_obspy(obspy_cat, inv)
     assert "NET.STA1." in hdd_cat.getStations()
-    assert len(next(iter(hdd_cat.getPhases().values()))) == 1
+    (phase,) = next(iter(hdd_cat.getPhases().values()))
+    # ambiguous among Z/N/E components of the same instrument: no orientation
+    # letter is guessed, only the shared band+instrument code is used
+    assert phase.locationCode == ""
+    assert phase.channelCode == "HH"
+
+
+def test_catalog_from_obspy_missing_channel_code_stays_unresolved_when_multiple_instruments():
+    # same location, but two genuinely different instruments (e.g. a
+    # broadband and a strong-motion sensor): even though they'd agree on
+    # coordinates, a pick with no channel code can't tell which one it
+    # belongs to, so resolution must fail rather than guessing.
+    chan1 = Channel(
+        code="HHZ", location_code="", latitude=47.0, longitude=8.0,
+        elevation=500.0, depth=0.0,
+    )
+    chan2 = Channel(
+        code="BHZ", location_code="", latitude=47.0, longitude=8.0,
+        elevation=500.0, depth=0.0,
+    )
+    sta = Station(code="STA1", latitude=47.0, longitude=8.0, elevation=500.0, channels=[chan1, chan2])
+    inv = Inventory(networks=[Network(code="NET", stations=[sta])])
+
+    pick = _pick(T0 + 5.0, channel="")
+    obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick)])
+
+    hdd_cat = catalog_from_obspy(obspy_cat, inv)
+    (eid,) = hdd_cat.getEvents().keys()
+    assert hdd_cat.getPhases().get(eid, []) == []
+    assert len(hdd_cat.getStations()) == 0
 
 
 def test_catalog_from_obspy_missing_channel_code_stays_unresolved_when_location_channels_disagree():
@@ -220,9 +252,16 @@ def test_catalog_from_obspy_missing_location_and_channel_falls_back_when_station
     obspy_cat = ev.Catalog(events=[_event_with_one_pick(pick)])
 
     hdd_cat = catalog_from_obspy(obspy_cat, inv)
-    assert "NET.STA1." in hdd_cat.getStations()
-    assert hdd_cat.getStations()["NET.STA1."].latitude == 47.0
-    assert len(next(iter(hdd_cat.getPhases().values()))) == 1
+    # the station is filed under the *resolved* location "00", not the
+    # pick's own (missing) "" -- otherwise the catalog would reference a
+    # location/channel that doesn't actually exist in the inventory.
+    assert "NET.STA1." not in hdd_cat.getStations()
+    assert "NET.STA1.00" in hdd_cat.getStations()
+    assert hdd_cat.getStations()["NET.STA1.00"].latitude == 47.0
+    (phase,) = next(iter(hdd_cat.getPhases().values()))
+    assert phase.stationId == "NET.STA1.00"
+    assert phase.locationCode == "00"
+    assert phase.channelCode == "HHZ"
 
 
 def test_catalog_from_obspy_missing_location_and_channel_stays_unresolved_when_ambiguous():
