@@ -34,8 +34,8 @@ def test_config_defaults():
 
     c = Config()
 
-    assert c.validPphases == ["Pg", "P", "Px"]
-    assert c.validSphases == ["Sg", "S", "Sx"]
+    assert c.validPphases == ["P", "Pg", "Pn"]
+    assert c.validSphases == ["S", "Sg", "Sn"]
     assert c.pickUncertaintyClasses == [0.000, 0.025, 0.050, 0.100, 0.200, 0.400]
     assert c.PSTableOnly
 

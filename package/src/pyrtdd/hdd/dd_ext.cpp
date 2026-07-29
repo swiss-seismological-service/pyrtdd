@@ -186,14 +186,13 @@ void InitDd(py::module_ &m) {
           &DD::disableCatalogWaveformDiskCache)
       .def("unloadWaveforms", &DD::unloadWaveforms)
       .def("findClusters", &DD::findClusters)
-      // `clustOpt` is dropped here: `DD::relocateMultiEvents` only consults it
-      // to auto-compute `clusters` when the list passed in is empty, and
-      // every documented workflow always calls `findClusters(clustOpt)`
-      // first and passes its non-empty result in, at which point `clustOpt`
-      // is never touched again. A default-constructed `ClusteringOptions()`
-      // is passed through internally so that (rarely used, undocumented)
-      // empty-`clusters` auto-clustering still works, just with default
-      // options -- callers who want custom options for that should call
+      // `clustOpt` is dropped here: scrtdd exposes it only on the sibling
+      // overload that auto-computes `clusters` internally via `findClusters`;
+      // the overload called below takes an already-populated `clusters` and
+      // never looks at `clustOpt` at all. Every documented workflow already
+      // calls `findClusters(clustOpt)` itself and passes the non-empty
+      // result in, so there's nothing to plumb through here -- callers who
+      // want the auto-clustering overload's behaviour should call
       // `findClusters` themselves instead, same as everywhere else.
       .def(
           "relocateMultiEvents",
@@ -203,8 +202,8 @@ void InitDd(py::module_ &m) {
              SolverOptions const &solverOpt, bool saveProcessing,
              std::string const &processingDataDir) {
             return dd.relocateMultiEvents(
-                clusters, xcorrData, ClusteringOptions(), xcorrOpt, solverOpt,
-                saveProcessing, processingDataDir);
+                clusters, xcorrData, xcorrOpt, solverOpt, saveProcessing,
+                processingDataDir);
           },
           py::arg("clusters"), py::arg("xcorrData"), py::arg("xcorrOpt"),
           py::arg("solverOpt"), py::arg("saveProcessing") = false,
@@ -222,8 +221,8 @@ void InitDd(py::module_ &m) {
             XcorrOptions xcorrOpt;
             xcorrOpt.enable = false;
             return dd.relocateMultiEvents(
-                clusters, discardedXcorrData, ClusteringOptions(), xcorrOpt,
-                solverOpt, saveProcessing, processingDataDir);
+                clusters, discardedXcorrData, xcorrOpt, solverOpt,
+                saveProcessing, processingDataDir);
           },
           py::arg("clusters"), py::arg("solverOpt"),
           py::arg("saveProcessing") = false, py::arg("processingDataDir") = "")

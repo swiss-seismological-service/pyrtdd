@@ -6,7 +6,7 @@ Please cite the code as:
 
 # pyrtdd
 
-Python wrapper for the C++ double-difference relocation library from [scrtdd](https://github.com/swiss-seismological-service/scrtdd). `pyrtdd` currently tracks scrtdd [v2.0.8](https://github.com/swiss-seismological-service/scrtdd/releases/tag/v2.0.8).
+Python wrapper for the C++ double-difference relocation library from [scrtdd](https://github.com/swiss-seismological-service/scrtdd). `pyrtdd` currently tracks scrtdd [v2.0.9](https://github.com/swiss-seismological-service/scrtdd/releases/tag/v2.0.9).
 
 Please note that, since this is a Python wrapper, the official documentation is only available for the SeisComP module [scrtdd](https://github.com/swiss-seismological-service/scrtdd). You'll need to skip the SeisComP-specific details there and focus on the underlying concepts, which apply to this code as well.
 
@@ -123,9 +123,9 @@ cat_new = dd.relocateMultiEvents(
 
 # 6. Save the relocated catalog.
 #    How to evaluate the results: https://docs.gempa.de/scrtdd/current/base/multievent.html#evaluating-the-results
-cat_new.writeToFile('relocated-event.csv',
-                    'relocated-phase.csv',
-                    'relocated-station.csv')
+cat_new.writeToFile('relocated-station.csv',
+                    'relocated-event.csv',
+                    'relocated-phase.csv')
 ```
 
 ![reloc](https://user-images.githubusercontent.com/15273575/205635799-80128f78-be04-48dc-8c17-32887d929552.png)
@@ -144,7 +144,7 @@ from pyrtdd.obspy.catalog import catalog_from_obspy
 cat = catalog_from_obspy(obspy_catalog, inventory)
 
 # optional: dump the converted catalog
-cat.writeToFile('input-event.csv', 'input-phase.csv', 'input-station.csv')
+cat.writeToFile('input-station.csv', 'input-event.csv', 'input-phase.csv')
 ```
 
 The reverse direction, `catalog_to_obspy`, builds an `obspy.core.event.Catalog` from a `pyrtdd.hdd.Catalog` (e.g. the relocated catalog `relocateMultiEvents` returns), for writing results out as QuakeML instead of CSV, or for using obspy's own plotting (`cat.plot()`):

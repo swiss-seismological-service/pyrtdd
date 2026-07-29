@@ -132,7 +132,10 @@ void InitCatalog(py::module_ &m) {
                        }
                        return r;
                      })
-                     .def("writeToFile", &HDD::Catalog::writeToFile)
+                     .def(
+                         "writeToFile", &HDD::Catalog::writeToFile,
+                         py::arg("stationFile"), py::arg("eventFile"),
+                         py::arg("phaseFile") = "")
                      .def(
                          "extractEvent", &HDD::Catalog::extractEvent,
                          py::arg("eventId"), py::arg("keepEvId"))

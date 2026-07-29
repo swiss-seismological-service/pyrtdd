@@ -74,7 +74,7 @@ cat = Catalog(
 #
 # Optional: dump the converted catalog, you can load this catalog the next time
 #
-# cat.writeToFile('input-event.csv', 'input-phase.csv', 'input-station.csv')
+# cat.writeToFile('input-station.csv', 'input-event.csv', 'input-phase.csv')
 
 # -----------------------------------------------------------------------
 # 2. Phase catalog configuration: controls which picks are actually used,
@@ -326,9 +326,9 @@ xcorr_data.writeToFile(cat, "xcorr_cache.csv")
 
 # Option A: plain CSV files.
 cat_new.writeToFile(
+    "relocated-station.csv",
     "relocated-event.csv",
     "relocated-phase.csv",
-    "relocated-station.csv",
 )
 
 # Option B: as an obspy Catalog instead (comment out Option A above if using
